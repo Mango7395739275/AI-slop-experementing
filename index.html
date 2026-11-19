@@ -256,6 +256,52 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
 @media (max-width: 350px) {
   .toolbar .brand-mark { display: none; }
 }
+@media (orientation: landscape) and (max-width: 600px),
+       (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  body {
+    --top-inset: max(6px, env(safe-area-inset-top));
+    --bottom-inset: max(6px, env(safe-area-inset-bottom));
+    padding: var(--top-inset) max(8px, env(safe-area-inset-right))
+      var(--bottom-inset) max(8px, env(safe-area-inset-left));
+  }
+  .arcade {
+    --play-height: calc(100dvh - var(--top-inset) - var(--bottom-inset));
+    position: relative;
+    grid-template-rows: minmax(0, 1fr);
+    justify-items: center;
+    align-items: center;
+    gap: 6px;
+  }
+  .frame {
+    width: min(100%, calc((var(--play-height) - 2px) * 120 / 61));
+    aspect-ratio: 120 / 61;
+    border-radius: 8px;
+  }
+  #game { position: absolute; inset: 0; }
+  .toolbar { position: absolute; inset: 0 0 auto auto; }
+  .brand { display: none; }
+  .actions { flex-direction: column; gap: 4px; }
+  .mobile-controls {
+    position: absolute;
+    inset: auto 0 0;
+    pointer-events: none;
+  }
+  .touch-control { pointer-events: auto; width: clamp(44px, 9vw, 58px); }
+  .jump-control { width: clamp(64px, 12vw, 84px); }
+  .hud { padding: 6px; }
+  .stage-label, .meters { padding: 5px 7px; font-size: .8rem; }
+  .dialog { width: min(100%, 290px); padding: 10px 14px; }
+  .dialog h2 { font-size: 1.2rem; }
+  .dialog p { margin: 5px 0 9px; font-size: .85rem; }
+  .primary { min-height: 44px; }
+
+  @media (max-aspect-ratio: 14 / 5) {
+    .arcade { --play-height: calc(100dvh - var(--top-inset) - var(--bottom-inset) - 54px); grid-template-rows: minmax(0, 1fr) auto; }
+    .mobile-controls { position: static; width: 100%; }
+    .toolbar { inset: auto auto 2px; z-index: 1; }
+    .actions { flex-direction: row; }
+  }
+}
 </style>
 </head>
 <body>
