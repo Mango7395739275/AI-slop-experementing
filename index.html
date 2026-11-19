@@ -168,6 +168,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   margin-block: 12px;
 }
 .physics-fields label { display: grid; gap: 4px; font-size: .9rem; }
+.physics-fields button { align-self: end; min-height: 44px; padding: 6px 8px; font-size: .85rem; }
 .physics-fields input {
   width: 100%;
   min-height: 44px;
@@ -417,6 +418,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
       <label>Speed (px/s)<input name="speed" type="number" min="20" max="1000" step="any" required></label>
       <label>Gravity (px/s²)<input name="gravity" type="number" min="50" max="1200" step="any" required></label>
       <label>Jump height (px)<input name="jumpHeight" type="number" min="10" max="220" step="any" required></label>
+      <button id="pee-strength" type="button" value="100">Pee strength 100%</button>
     </div>
     <div class="physics-actions">
       <button id="physics-reset" type="button">Reset defaults</button>
@@ -447,7 +449,10 @@ const soundButton = document.getElementById('sound');
 const physicsDialog = document.getElementById('physics-dialog');
 const physicsForm = document.getElementById('physics-form');
 const physicsFields = [...physicsForm.querySelectorAll('input')];
-const PHYSICS_STORAGE_KEY = 'emberbound.physics';
+const peeStrengthButton = document.getElementById('pee-strength');
+const PEE_STRENGTH_LEVELS = [0, 50, 100, 150, 200];
+const DEFAULT_PEE_STRENGTH = 100;
+const PHYSICS_STORAGE_KEY = 'emberbound.physics.v2';
 const numberLabel = document.getElementById('stage-number');
 const nameLabel = document.getElementById('stage-name');
 const countLabel = document.getElementById('count');
@@ -457,9 +462,7 @@ const HEIGHT = 16;
 const WIDTH = 11;
 const FLOOR = 224;
 const STEP = 1 / 500;
-const PEE_WINDUP = .35;
-const PEE_FLOW_END = 1.65;
-const PEE_DURATION = 2.2;
+const PEE_DROP_INTERVAL = .014;
 const classicStages = [
   {
     name: 'The Cinderwilds', sky: ['#311c32', '#9c4b47', '#e99561'], sun: '#ffbf77', sunX: 271,
@@ -467,7 +470,7 @@ const classicStages = [
     ground: [[0, FLOOR, 147], [173, FLOOR, 149], [349, FLOOR, 131]],
     ledges: [[54, 200, 47], [112, 174, 45], [175, 148, 47], [229, 169, 42], [280, 194, 48], [341, 172, 45], [388, 198, 31]],
     embers: [[78, 184], [135, 158], [198, 132], [250, 153], [301, 178], [364, 156]],
-    spikes: [], crawlers: [[239, 291, FLOOR, 1]], gate: [440, FLOOR]
+    spikes: [], crawlers: [[88, 131, FLOOR, 1], [239, 291, FLOOR, 1]], gate: [440, FLOOR]
   },
   {
     name: 'Ashen Span', sky: ['#202438', '#604459', '#ba776b'], sun: '#f4ab87', sunX: 338,
@@ -475,7 +478,8 @@ const classicStages = [
     ground: [[0, FLOOR, 93], [131, FLOOR, 90], [253, FLOOR, 78], [370, FLOOR, 110]],
     ledges: [[44, 199, 41], [94, 174, 40], [149, 149, 37], [205, 169, 39], [255, 145, 40], [309, 173, 40], [364, 198, 39]],
     embers: [[64, 183], [114, 158], [167, 133], [224, 153], [275, 129], [329, 157]],
-    spikes: [[169, FLOOR, 24], [291, FLOOR, 24]], crawlers: [[392, 430, FLOOR, -1]], gate: [452, FLOOR]
+    spikes: [[169, FLOOR, 24], [291, FLOOR, 24]],
+    crawlers: [[138, 158, FLOOR, 1], [313, 337, 173, 1], [392, 430, FLOOR, -1]], gate: [452, FLOOR]
   },
   {
     name: 'The Last Light', sky: ['#1e1b30', '#73364b', '#e07e59'], sun: '#ffab62', sunX: 226,
@@ -484,7 +488,26 @@ const classicStages = [
     ledges: [[41, 199, 38], [90, 173, 37], [141, 146, 38], [194, 165, 37], [245, 137, 39], [298, 158, 37], [347, 184, 41], [403, 197, 32]],
     embers: [[60, 183], [108, 157], [160, 130], [213, 149], [265, 121], [318, 142]],
     spikes: [[145, FLOOR, 31], [266, FLOOR, 30], [386, FLOOR, 21]],
-    crawlers: [[207, 220, 165, 1], [413, 437, FLOOR, -1]], gate: [452, FLOOR]
+    crawlers: [[147, 171, 146, -1], [207, 220, 165, 1], [413, 437, FLOOR, -1]], gate: [452, FLOOR]
+  },
+  {
+    name: 'The Glassworks', sky: ['#212c3b', '#5f5265', '#d49177'], sun: '#ffd0a0', sunX: 164,
+    stone: ['#43455b', '#343243', '#252533', '#b58876', '#f3b194'],
+    ground: [[0, FLOOR, 106], [134, FLOOR, 98], [263, FLOOR, 88], [381, FLOOR, 99]],
+    ledges: [[35, 199, 40], [93, 175, 45], [155, 153, 46], [221, 176, 44], [285, 153, 46], [345, 179, 47], [406, 199, 43]],
+    embers: [[54, 183], [115, 159], [180, 137], [242, 160], [306, 137], [368, 163], [424, 183]],
+    spikes: [[178, FLOOR, 26], [301, FLOOR, 25], [399, FLOOR, 23]],
+    crawlers: [[75, 97, FLOOR, -1], [163, 194, 153, 1], [296, 323, 153, -1], [432, 458, FLOOR, 1]], gate: [465, FLOOR]
+  },
+  {
+    name: 'The Iron Furnace', sky: ['#2d1931', '#73374a', '#d77d51'], sun: '#ffb361', sunX: 307,
+    stone: ['#58343c', '#3c2833', '#281e2b', '#c67959', '#ffb376'],
+    ground: [[0, FLOOR, 87], [119, FLOOR, 94], [245, FLOOR, 83], [361, FLOOR, 119]],
+    ledges: [[39, 196, 42], [98, 169, 45], [159, 144, 43], [219, 168, 44], [278, 141, 44], [339, 168, 44], [395, 193, 45]],
+    embers: [[59, 180], [122, 153], [178, 128], [240, 152], [302, 125], [361, 152], [419, 177]],
+    spikes: [[145, FLOOR, 25], [271, FLOOR, 27], [393, FLOOR, 28]],
+    crawlers: [[63, 78, FLOOR, -1], [169, 192, 144, 1], [228, 255, 168, -1], [347, 376, 168, 1], [432, 452, FLOOR, -1]],
+    gate: [467, FLOOR]
   }
 ];
 const TOWER_WIDTH = 240;
@@ -505,7 +528,7 @@ const towerStages = [
     ],
     embers: [[57, 1064], [179, 936], [54, 808], [191, 680], [63, 552], [177, 424], [50, 296]],
     spikes: [[120, 760, 17], [72, 376, 18]],
-    crawlers: [[111, 129, 888, 1], [122, 171, 504, -1]],
+    crawlers: [[126, 166, 1016, -1], [111, 129, 888, 1], [87, 125, 632, 1], [122, 171, 504, -1]],
     gate: [124, 184]
   },
   {
@@ -521,8 +544,24 @@ const towerStages = [
     ],
     embers: [[66, 1074], [184, 933], [48, 786], [188, 633], [57, 477], [190, 324], [99, 244]],
     spikes: [[136, 1020, 18], [102, 725, 17], [55, 571, 17], [115, 418, 19], [195, 340, 17]],
-    crawlers: [[94, 118, 878, -1], [158, 175, 649, 1], [23, 45, 493, -1]],
+    crawlers: [[165, 195, 1020, 1], [94, 118, 878, -1], [158, 175, 649, 1], [23, 45, 493, -1], [70, 91, 260, 1]],
     gate: [134, 184]
+  },
+  {
+    name: 'The Obsidian Spire', tower: true,
+    sky: ['#211e38', '#3f395b', '#825266'],
+    stone: ['#45445c', '#35334c', '#242439', '#a47d91', '#e9a6a0'],
+    ground: [[0, TOWER_FLOOR, TOWER_WIDTH]],
+    ledges: [
+      [30, 1080, 62], [123, 1010, 68], [158, 939, 58],
+      [67, 866, 70], [20, 795, 62], [104, 716, 66],
+      [149, 638, 67], [57, 565, 63], [23, 488, 66],
+      [117, 413, 66], [153, 338, 64], [64, 258, 64], [97, 183, 85]
+    ],
+    embers: [[58, 1064], [184, 923], [49, 779], [190, 622], [65, 472], [185, 322], [108, 242]],
+    spikes: [[160, 939, 16], [72, 866, 16], [105, 716, 22], [57, 565, 16], [163, 413, 18], [68, 258, 17]],
+    crawlers: [[131, 180, 1010, -1], [102, 127, 866, 1], [157, 173, 638, -1], [28, 48, 488, 1], [158, 199, 338, -1]],
+    gate: [142, 183]
   }
 ];
 let stages = classicStages;
@@ -541,31 +580,39 @@ let elapsed = 0;
 let grace = 0;
 let jumpBuffer = 0;
 let invincible = 0;
-let nextPeeAt;
-let peeStartedAt = -Infinity;
 let nextPeeDropAt;
 const peeDrops = [];
+const puddles = [];
+const PUDDLE_WIDTH = 8;
+const PUDDLE_LIFETIME = 5;
 let soundEnabled = true;
 let audioContext;
 
 function readPhysics() {
   try {
     const saved = JSON.parse(localStorage.getItem(PHYSICS_STORAGE_KEY));
-    return saved && physicsFields.every(({name, min, max}) =>
+    const valid = saved && physicsFields.every(({name, min, max}) =>
       Number.isFinite(saved[name]) && saved[name] >= Number(min) && saved[name] <= Number(max)
-    ) ? saved : null;
+    );
+    if (!valid) return null;
+    const peeStrength = PEE_STRENGTH_LEVELS.includes(saved.peeStrength) ? saved.peeStrength : DEFAULT_PEE_STRENGTH;
+    return { ...saved, peeStrength };
   } catch {
     return null;
   }
 }
 
 function defaultPhysics() {
-  return { speed: stage.tower ? 160 : 426, gravity: 200, jumpHeight: 110.25 };
+  return stage.tower
+    ? { speed: 160, gravity: 200, jumpHeight: 110.25, peeStrength: DEFAULT_PEE_STRENGTH }
+    : { speed: 96, gravity: 500, jumpHeight: 44.1, peeStrength: DEFAULT_PEE_STRENGTH };
 }
 
 function applyPhysics(settings) {
   customPhysics = settings;
   physics = settings ?? defaultPhysics();
+  if (physics.peeStrength === 0) peeDrops.length = 0;
+  nextPeeDropAt = elapsed;
   try {
     if (settings) localStorage.setItem(PHYSICS_STORAGE_KEY, JSON.stringify(settings));
     else localStorage.removeItem(PHYSICS_STORAGE_KEY);
@@ -643,8 +690,9 @@ function loadStage(index) {
   collected = 0;
   invincible = 0;
   particles.length = 0;
-  peeStartedAt = -Infinity;
+  nextPeeDropAt = elapsed;
   peeDrops.length = 0;
+  puddles.length = 0;
   resetPlayer();
   fitPlayfield();
   buildBackdrop();
@@ -688,9 +736,7 @@ function togglePause() {
 function completeStage() {
   playSound([[0, 523, .17], [.09, 659, .18], [.18, 784, .24], [.29, 1047, .3]]);
   if (stageIndex + 1 === stages.length) {
-    const detail = stage.tower
-      ? 'You climbed both towers and recovered every ember.'
-      : 'You found every ember across all three stages.';
+    const detail = 'You recovered every ember across all ' + stages.length + ' stages.';
     showDialog('win', 'The fire is restored', detail, 'Play again');
   } else {
     showDialog('clear', 'Stage cleared', stages[stageIndex + 1].name + ' awaits.', 'Next stage');
@@ -698,7 +744,6 @@ function completeStage() {
 }
 
 function takeHit(x, y) {
-  peeStartedAt = -Infinity;
   life -= 1;
   burst(x, y, '#ff7755', 14);
   playSound([[0, 190, .13], [.07, 110, .2]]);
@@ -821,15 +866,28 @@ document.getElementById('restart').addEventListener('click', () => {
   loadStage(mode === 'win' ? 0 : stageIndex);
 });
 
+function showPeeStrength(strength) {
+  peeStrengthButton.value = strength;
+  peeStrengthButton.textContent = 'Pee strength ' + strength + '%';
+}
+
+peeStrengthButton.addEventListener('click', () => {
+  const current = PEE_STRENGTH_LEVELS.indexOf(Number(peeStrengthButton.value));
+  showPeeStrength(PEE_STRENGTH_LEVELS[(current + 1) % PEE_STRENGTH_LEVELS.length]);
+});
+
 document.getElementById('physics-open').addEventListener('click', () => {
   for (const field of physicsFields) field.value = physics[field.name];
+  showPeeStrength(physics.peeStrength);
   clearInput();
   physicsDialog.showModal();
 });
 
 physicsForm.addEventListener('submit', event => {
   event.preventDefault();
-  applyPhysics(Object.fromEntries(physicsFields.map(field => [field.name, field.valueAsNumber])));
+  const settings = Object.fromEntries(physicsFields.map(field => [field.name, field.valueAsNumber]));
+  settings.peeStrength = Number(peeStrengthButton.value);
+  applyPhysics(settings);
 });
 
 document.getElementById('physics-reset').addEventListener('click', () => applyPhysics(null));
@@ -849,27 +907,33 @@ function burst(x, y, color, amount) {
   }
 }
 
-function updatePeeAnimation(dt) {
-  if (!player.ground) {
-    peeStartedAt = -Infinity;
-  } else if (elapsed >= nextPeeAt && !invincible) {
-    peeStartedAt = elapsed;
-    nextPeeAt = elapsed + 15 + Math.random() * 15;
-    nextPeeDropAt = elapsed + PEE_WINDUP;
-  }
+function defeatCrawler(crawler) {
+  crawler.alive = false;
+  burst(crawler.x, crawler.y - 5, '#ff975a', 9);
+  playSound([[0, 235, .12], [.05, 370, .13]]);
+}
 
-  const pose = elapsed - peeStartedAt;
-  if (elapsed >= nextPeeDropAt && pose < PEE_FLOW_END) {
-    const pressure = Math.min(1, (pose - PEE_WINDUP) / .2, (PEE_FLOW_END - pose) / .28);
+function wetSurface([left, y, width], hitX) {
+  const x = left + Math.floor((hitX - left) / PUDDLE_WIDTH) * PUDDLE_WIDTH;
+  const expiresAt = elapsed + PUDDLE_LIFETIME;
+  const puddle = puddles.find(patch => patch.x === x && patch.y === y);
+  if (puddle) puddle.expiresAt = expiresAt;
+  else puddles.push({ x, y, width: Math.min(PUDDLE_WIDTH, left + width - x), expiresAt });
+}
+
+function updatePeeAnimation(dt) {
+  if (physics.peeStrength === 0) return;
+  if (elapsed >= nextPeeDropAt) {
+    const lift = 46 * (physics.peeStrength / 100);
     peeDrops.push({
       x: Math.round(player.x + WIDTH / 2) + player.facing * 5,
       y: Math.round(player.y) + 12,
-      vx: player.facing * (25 + pressure * 52 + Math.random() * 5),
-      vy: -6 - pressure * 20 + Math.random() * 4,
+      vx: player.facing * (77 + Math.random() * 5),
+      vy: -lift + Math.random() * 4,
       life: 1,
       splash: false
     });
-    nextPeeDropAt += .014;
+    nextPeeDropAt = Math.max(nextPeeDropAt + PEE_DROP_INTERVAL, elapsed);
   }
 
   for (let i = peeDrops.length - 1; i >= 0; i--) {
@@ -879,30 +943,56 @@ function updatePeeAnimation(dt) {
     drop.vy += 280 * dt;
     drop.y += drop.vy * dt;
     drop.life -= dt;
+    if (drop.life <= 0 || drop.x < 0 || drop.x >= W) {
+      peeDrops.splice(i, 1);
+      continue;
+    }
     const surface = drop.vy > 0 && surfaces.find(([x, y, width]) =>
       oldY <= y && drop.y >= y && drop.x >= x && drop.x < x + width
     );
-    if (surface && !drop.splash && Math.random() < .4) {
-      for (const direction of [-1, 1]) {
-        peeDrops.push({
-          x: drop.x, y: surface[1] - 1,
-          vx: direction * (9 + Math.random() * 15), vy: -12 - Math.random() * 16,
-          life: .22, splash: true
-        });
+    if (!surface && !drop.splash) {
+      const hit = crawlers.find(crawler => crawler.alive &&
+        drop.x < crawler.x + 6 && drop.x + 2 > crawler.x - 6 &&
+        drop.y < crawler.y && drop.y + 1 > crawler.y - 9
+      );
+      if (hit) {
+        defeatCrawler(hit);
+        peeDrops.splice(i, 1);
+        continue;
       }
     }
-    if (surface || drop.life <= 0 || drop.x < 0 || drop.x >= W) peeDrops.splice(i, 1);
+    if (surface) {
+      if (!drop.splash) {
+        wetSurface(surface, drop.x);
+        if (Math.random() < .4) {
+          for (const direction of [-1, 1]) {
+            peeDrops.push({
+              x: drop.x, y: surface[1] - 1,
+              vx: direction * (9 + Math.random() * 15), vy: -12 - Math.random() * 16,
+              life: .22, splash: true
+            });
+          }
+        }
+      }
+      peeDrops.splice(i, 1);
+    }
   }
 }
 
 function update(dt) {
   elapsed += dt;
+  for (let i = puddles.length - 1; i >= 0; i--) {
+    if (puddles[i].expiresAt <= elapsed) puddles.splice(i, 1);
+  }
   invincible = Math.max(0, invincible - dt);
   jumpBuffer = Math.max(0, jumpBuffer - dt);
   grace = player.ground ? .085 : Math.max(0, grace - dt);
   const move = Number(active('right')) - Number(active('left'));
   const speed = move * physics.speed;
-  const acceleration = (move ? 1800 : 2400) * dt;
+  const onPuddle = player.ground && puddles.some(({x, y, width}) =>
+    player.y + HEIGHT === y && player.x < x + width && player.x + WIDTH > x
+  );
+  const acceleration = (move ? 1800 : 2400) * (onPuddle ? .12 : 1) * dt;
   player.vx += Math.max(-acceleration, Math.min(acceleration, speed - player.vx));
   if (move) player.facing = move;
   if (jumpBuffer && grace) {
@@ -948,6 +1038,7 @@ function update(dt) {
     }
   }
 
+  updatePeeAnimation(dt);
   for (const crawler of crawlers) {
     if (!crawler.alive) continue;
     crawler.x += crawler.direction * 29 * dt;
@@ -957,12 +1048,10 @@ function update(dt) {
     }
     if (!overlaps(crawler.x - 6, crawler.y - 9, 12, 9)) continue;
     if (player.vy >= 0 && oldFeet <= crawler.y - 6) {
-      crawler.alive = false;
+      defeatCrawler(crawler);
       player.y = crawler.y - 9 - HEIGHT;
       player.vy = -145;
       player.ground = false;
-      burst(crawler.x, crawler.y - 5, '#ff975a', 9);
-      playSound([[0, 235, .12], [.05, 370, .13]]);
     } else if (!invincible) {
       takeHit(player.x + WIDTH / 2, player.y + HEIGHT / 2);
       return;
@@ -990,7 +1079,6 @@ function update(dt) {
     p.vy += 115 * dt;
   }
 
-  updatePeeAnimation(dt);
   const [gateX, gateY] = stage.gate;
   if (collected === embers.length && overlaps(gateX - 6, gateY - 24, 12, 24)) completeStage();
 }
@@ -1175,34 +1263,24 @@ function drawPlayer() {
   if (invincible > 0 && Math.floor(invincible * 16) % 2) return;
   const running = player.ground && Math.abs(player.vx) > 20;
   const stride = running ? Math.floor(elapsed * 14) % 2 : 0;
-  const pose = elapsed - peeStartedAt;
-  const preparing = pose >= .12 && pose < PEE_WINDUP;
-  const flowing = pose >= PEE_WINDUP && pose < PEE_FLOW_END;
-  const shaking = pose >= PEE_FLOW_END && pose < PEE_FLOW_END + .2;
-  const shakingOffset = shaking ? Math.round(Math.sin((pose - PEE_FLOW_END) * 75)) : 0;
-  const armDown = pose >= .2 && pose < PEE_DURATION - .15;
-  const braced = armDown && !running;
-  const headX = flowing ? -1 : shakingOffset;
-  const headY = preparing ? 1 : 0;
+  const peeing = physics.peeStrength > 0;
+  const braced = peeing && player.ground && !running;
+  const headOffset = peeing ? -1 : 0;
   ctx.save();
   ctx.translate(Math.round(player.x + WIDTH / 2), Math.round(player.y));
   ctx.scale(player.facing, 1);
   rect(ctx, '#2e1d26', -5, 1, 10, 13);
-  rect(ctx, '#fa9a53', -4 + headX, headY, 7, 7);
-  rect(ctx, '#ffd486', -3 + headX, headY, 5, 1);
-  rect(ctx, '#e07441', -5 + headX, 3 + headY, 10, 5);
-  rect(ctx, '#442637', -2 + headX, 3 + headY, 7, 4);
-  rect(ctx, '#fff0b6', 1 + headX, 4 + headY + Number(preparing), 3, 1);
+  rect(ctx, '#fa9a53', -4 + headOffset, 0, 7, 7);
+  rect(ctx, '#ffd486', -3 + headOffset, 0, 5, 1);
+  rect(ctx, '#e07441', -5 + headOffset, 3, 10, 5);
+  rect(ctx, '#442637', -2 + headOffset, 3, 7, 4);
+  rect(ctx, '#fff0b6', 1 + headOffset, 4, 3, 1);
   rect(ctx, '#8b3d3e', -4, 8, 8, 5);
   rect(ctx, '#ffa04f', -5, 7, 10, 2);
   rect(ctx, '#e6663c', -9, stride ? 6 : 8, 5, 2);
   rect(ctx, '#f6a350', -10, stride ? 5 : 9, 3, 1);
-  if (armDown) {
-    rect(ctx, '#e88a51', 2, 9, 2, 3);
-    rect(ctx, '#ffbd74', 4 + shakingOffset, 11, 2, 1);
-  } else {
-    rect(ctx, '#e88a51', 3, 9, 2, 3);
-  }
+  rect(ctx, '#e88a51', peeing ? 2 : 3, 9, 2, 3);
+  if (peeing) rect(ctx, '#ffbd74', 4, 11, 2, 1);
   const backFootY = braced ? 15 : 14 + stride;
   rect(ctx, '#392738', braced ? -5 : -4, 12, 3, backFootY - 11);
   rect(ctx, '#392738', braced ? 2 : 1, 12, 3, 4 - stride);
@@ -1237,6 +1315,12 @@ function draw() {
   }
   for (const block of stage.ground) drawSurface(...block, true);
   for (const block of stage.ledges) drawSurface(...block, false);
+  for (const {x, y, width, expiresAt} of puddles) {
+    ctx.globalAlpha = Math.min(1, expiresAt - elapsed);
+    rect(ctx, '#ab7b2c', x, y - 1, width, 3);
+    rect(ctx, '#f1c85f', x + 1, y - 1, Math.max(0, width - 2), 1);
+  }
+  ctx.globalAlpha = 1;
   for (const [x, y, width] of stage.spikes) {
     for (let i = 0; i + 4 <= width; i += 5) {
       rect(ctx, '#7a3e42', x + i, y - 3, 5, 3);
@@ -1262,7 +1346,6 @@ function draw() {
 
 function startCourse() {
   stages = portraitPhone.matches ? towerStages : classicStages;
-  nextPeeAt = elapsed + 15 + Math.random() * 15;
   loadStage(0);
   const detail = stage.tower
     ? 'Climb the towers, collect every ember, and reach each summit gate.'
