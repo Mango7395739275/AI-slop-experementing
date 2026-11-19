@@ -152,6 +152,35 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   color: #271612;
 }
 .primary:hover { background: #ffd091; }
+.physics-dialog {
+  width: min(440px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: clamp(12px, 3vw, 22px);
+  color: var(--paper);
+  overflow: auto;
+  text-align: left;
+}
+.physics-dialog::backdrop { background: #170d17bc; }
+.physics-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+  gap: 10px;
+  margin-block: 12px;
+}
+.physics-fields label { display: grid; gap: 4px; font-size: .9rem; }
+.physics-fields input {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid #8e5946;
+  border-radius: 6px;
+  background: #21151c;
+  color: var(--paper);
+  font: inherit;
+  font-size: 1rem;
+}
+.physics-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.physics-actions button { min-height: 44px; padding: 6px 10px; }
 .help { justify-content: space-between; gap: 12px 20px; margin-top: clamp(10px, 2vh, 17px); flex-wrap: wrap; }
 .keys { flex-wrap: wrap; gap: 10px clamp(8px, 2vw, 18px); }
 .key-group { gap: 6px; }
@@ -263,6 +292,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
 }
 @media (max-width: 350px) {
   .toolbar .brand-mark { display: none; }
+  .brand h1 { font-size: clamp(.75rem, 4vw, 1rem); }
 }
 @media (orientation: landscape) and (max-width: 600px),
        (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
@@ -292,7 +322,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   .actions { gap: 4px; }
   .touch-control { width: clamp(44px, 9vw, 58px); height: 44px; }
   .jump-control { width: clamp(64px, 12vw, 84px); }
-  .hud { padding: 6px 154px 6px 6px; }
+  .hud { padding: 6px 202px 6px 6px; }
   .stage-label, .meters { padding: 5px 7px; font-size: .8rem; }
   .dialog { width: min(100%, 290px); padding: 10px 14px; }
   .dialog h2 { font-size: 1.2rem; }
@@ -315,6 +345,9 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
       <h1>EMBERBOUND</h1>
     </div>
     <div class="actions">
+      <button class="utility" id="physics-open" type="button" aria-label="Player settings" title="Player settings" aria-haspopup="dialog">
+        <span class="icon" aria-hidden="true">⚙</span><span class="label">Settings</span>
+      </button>
       <button class="utility mobile-pause" type="button" data-action="pause" aria-label="Pause game">
         <span class="icon" aria-hidden="true">Ⅱ</span>
       </button>
@@ -377,6 +410,21 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
     <p class="objective" id="objective" aria-live="polite"></p>
   </footer>
 </main>
+<dialog class="dialog physics-dialog" id="physics-dialog" aria-labelledby="physics-title">
+  <form id="physics-form">
+    <h2 id="physics-title">Player settings</h2>
+    <div class="physics-fields">
+      <label>Speed (px/s)<input name="speed" type="number" min="20" max="1000" step="any" required></label>
+      <label>Gravity (px/s²)<input name="gravity" type="number" min="50" max="1200" step="any" required></label>
+      <label>Jump height (px)<input name="jumpHeight" type="number" min="10" max="220" step="any" required></label>
+    </div>
+    <div class="physics-actions">
+      <button id="physics-reset" type="button">Reset defaults</button>
+      <button id="physics-cancel" type="button">Cancel</button>
+      <button class="primary" type="submit">Apply</button>
+    </div>
+  </form>
+</dialog>
 <script>
 'use strict';
 
@@ -396,6 +444,10 @@ const landscapePhone = window.matchMedia(
 const veil = document.getElementById('veil');
 const continueButton = document.getElementById('continue');
 const soundButton = document.getElementById('sound');
+const physicsDialog = document.getElementById('physics-dialog');
+const physicsForm = document.getElementById('physics-form');
+const physicsFields = [...physicsForm.querySelectorAll('input')];
+const PHYSICS_STORAGE_KEY = 'emberbound.physics';
 const numberLabel = document.getElementById('stage-number');
 const nameLabel = document.getElementById('stage-name');
 const countLabel = document.getElementById('count');
@@ -480,12 +532,41 @@ const background = document.createElement('canvas');
 background.width = W;
 background.height = H;
 let stage, stageIndex, surfaces, embers, crawlers, life, collected, mode;
+let customPhysics = readPhysics();
+let physics;
 let elapsed = 0;
 let grace = 0;
 let jumpBuffer = 0;
 let invincible = 0;
 let soundEnabled = true;
 let audioContext;
+
+function readPhysics() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PHYSICS_STORAGE_KEY));
+    return saved && physicsFields.every(({name, min, max}) =>
+      Number.isFinite(saved[name]) && saved[name] >= Number(min) && saved[name] <= Number(max)
+    ) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function defaultPhysics() {
+  return { speed: stage.tower ? 160 : 426, gravity: 200, jumpHeight: 110.25 };
+}
+
+function applyPhysics(settings) {
+  customPhysics = settings;
+  physics = settings ?? defaultPhysics();
+  try {
+    if (settings) localStorage.setItem(PHYSICS_STORAGE_KEY, JSON.stringify(settings));
+    else localStorage.removeItem(PHYSICS_STORAGE_KEY);
+  } catch {
+    // The settings still work for this session when browser storage is unavailable.
+  }
+  physicsDialog.close();
+}
 
 function playSound(notes) {
   if (!soundEnabled) return;
@@ -545,6 +626,7 @@ function resetPlayer() {
 function loadStage(index) {
   stageIndex = index;
   stage = stages[index];
+  physics = customPhysics ?? defaultPhysics();
   surfaces = [...stage.ground, ...stage.ledges];
   embers = stage.embers.map(([x, y]) => ({ x, y, found: false }));
   crawlers = stage.crawlers.map(([left, right, y, direction]) => ({
@@ -641,6 +723,7 @@ const bindings = {
 };
 
 document.addEventListener('keydown', event => {
+  if (physicsDialog.open) return;
   if (event.key === 'Tab' && !veil.hidden) {
     event.preventDefault();
     continueButton.focus();
@@ -699,7 +782,8 @@ for (const button of controlButtons) {
     if (action === 'jump') {
       jumpBuffer = .13;
     } else {
-      player.vx = action === 'left' ? -96 : 96;
+      const speed = Math.min(96, physics.speed);
+      player.vx = action === 'left' ? -speed : speed;
       player.facing = Math.sign(player.vx);
     }
   });
@@ -727,6 +811,24 @@ document.getElementById('restart').addEventListener('click', () => {
   loadStage(mode === 'win' ? 0 : stageIndex);
 });
 
+document.getElementById('physics-open').addEventListener('click', () => {
+  for (const field of physicsFields) field.value = physics[field.name];
+  clearInput();
+  physicsDialog.showModal();
+});
+
+physicsForm.addEventListener('submit', event => {
+  event.preventDefault();
+  applyPhysics(Object.fromEntries(physicsFields.map(field => [field.name, field.valueAsNumber])));
+});
+
+document.getElementById('physics-reset').addEventListener('click', () => applyPhysics(null));
+document.getElementById('physics-cancel').addEventListener('click', () => physicsDialog.close());
+physicsDialog.addEventListener('close', () => {
+  const target = mode === 'play' ? frame : continueButton;
+  target.focus({ preventScroll: true });
+});
+
 function overlaps(x, y, w, h) {
   return player.x < x + w && player.x + WIDTH > x && player.y < y + h && player.y + HEIGHT > y;
 }
@@ -743,12 +845,12 @@ function update(dt) {
   jumpBuffer = Math.max(0, jumpBuffer - dt);
   grace = player.ground ? .085 : Math.max(0, grace - dt);
   const move = Number(active('right')) - Number(active('left'));
-  const speed = move * (stage.tower ? 160 : 426);
+  const speed = move * physics.speed;
   const acceleration = (move ? 1800 : 2400) * dt;
   player.vx += Math.max(-acceleration, Math.min(acceleration, speed - player.vx));
   if (move) player.facing = move;
   if (jumpBuffer && grace) {
-    player.vy = -210;
+    player.vy = -Math.sqrt(2 * physics.gravity * physics.jumpHeight);
     player.ground = false;
     jumpBuffer = 0;
     grace = 0;
@@ -758,7 +860,7 @@ function update(dt) {
 
   const oldFeet = player.y + HEIGHT;
   player.x = Math.max(0, Math.min(W - WIDTH, player.x + player.vx * dt));
-  const gravity = active('fastFall') ? 620 : 200;
+  const gravity = physics.gravity * (active('fastFall') ? 3.1 : 1);
   const maxFallSpeed = active('fastFall') ? 440 : 370;
   player.vy = Math.min(maxFallSpeed, player.vy + gravity * dt);
   player.y += player.vy * dt;
@@ -1100,7 +1202,7 @@ new ResizeObserver(resizePlayfield).observe(frame);
 let previous = performance.now();
 let accumulator = 0;
 function tick(now) {
-  if (mode === 'play') {
+  if (mode === 'play' && !physicsDialog.open) {
     accumulator += Math.min((now - previous) / 1000, .05);
     while (accumulator >= STEP && mode === 'play') {
       update(STEP);
