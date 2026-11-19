@@ -281,17 +281,18 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
     gap: 6px;
   }
   .frame {
-    width: min(100%, calc((var(--play-height) - 2px) * 120 / 61));
+    width: 100%;
+    max-height: var(--play-height);
     aspect-ratio: 120 / 61;
     border-radius: 8px;
   }
   #game { position: absolute; inset: 0; }
-  .toolbar { position: absolute; inset: 0 0 auto auto; }
+  .toolbar { position: absolute; inset: 6px 6px auto auto; z-index: 1; }
   .brand { display: none; }
-  .actions { flex-direction: column; gap: 4px; }
+  .actions { gap: 4px; }
   .touch-control { width: clamp(44px, 9vw, 58px); height: 44px; }
   .jump-control { width: clamp(64px, 12vw, 84px); }
-  .hud { padding: 6px; }
+  .hud { padding: 6px 154px 6px 6px; }
   .stage-label, .meters { padding: 5px 7px; font-size: .8rem; }
   .dialog { width: min(100%, 290px); padding: 10px 14px; }
   .dialog h2 { font-size: 1.2rem; }
@@ -300,8 +301,8 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
 
   @media (max-aspect-ratio: 14 / 5) {
     .arcade { --play-height: calc(100dvh - var(--top-inset) - var(--bottom-inset) - 54px); grid-template-rows: minmax(0, 1fr) 48px; }
-    .toolbar { inset: auto auto 2px; z-index: 1; }
-    .actions { flex-direction: row; }
+    .toolbar { inset: auto auto 2px; }
+    .hud { padding-right: 6px; }
   }
 }
 </style>
@@ -388,6 +389,10 @@ let H = CLASSIC_HEIGHT;
 const frame = document.getElementById('frame');
 const mobileControls = frame.querySelector('.mobile-controls');
 const portraitPhone = window.matchMedia('(max-width: 600px) and (orientation: portrait)');
+const landscapePhone = window.matchMedia(
+  '(orientation: landscape) and (max-width: 600px), ' +
+  '(orientation: landscape) and (max-height: 600px) and (pointer: coarse)'
+);
 const veil = document.getElementById('veil');
 const continueButton = document.getElementById('continue');
 const soundButton = document.getElementById('sound');
@@ -518,13 +523,15 @@ function updateHUD() {
 
 function fitPlayfield() {
   const width = stage.tower ? TOWER_WIDTH : CLASSIC_WIDTH;
-  // Change the visible world height to match the frame. Both axes share one scale.
-  const height = stage.tower
-    ? Math.max(1, Math.round(width * frame.clientHeight / Math.max(1, frame.clientWidth)))
-    : CLASSIC_HEIGHT;
+  const fittedHeight = Math.max(1, Math.round(width * frame.clientHeight / Math.max(1, frame.clientWidth)));
+  let height = CLASSIC_HEIGHT;
+  if (stage.tower) height = fittedHeight;
+  else if (landscapePhone.matches) height = Math.min(CLASSIC_HEIGHT, fittedHeight);
+
   if (W === width && H === height) return false;
   canvas.width = background.width = W = width;
-  canvas.height = background.height = H = height;
+  canvas.height = H = height;
+  background.height = stage.tower ? height : CLASSIC_HEIGHT;
   return true;
 }
 
@@ -770,7 +777,7 @@ function update(dt) {
     }
   }
 
-  const worldBottom = stage.tower ? TOWER_BOTTOM : H;
+  const worldBottom = stage.tower ? TOWER_BOTTOM : CLASSIC_HEIGHT;
   if (player.y > worldBottom + 8) {
     takeHit(player.x + WIDTH / 2, worldBottom - 3);
     return;
@@ -862,12 +869,13 @@ function pine(c, x, bottom, height, color) {
 
 function buildBackdrop() {
   const c = background.getContext('2d');
-  const gradient = c.createLinearGradient(0, 0, 0, H);
+  const backdropHeight = background.height;
+  const gradient = c.createLinearGradient(0, 0, 0, backdropHeight);
   gradient.addColorStop(0, stage.sky[0]);
   gradient.addColorStop(.54, stage.sky[1]);
   gradient.addColorStop(1, stage.sky[2]);
   c.fillStyle = gradient;
-  c.fillRect(0, 0, W, H);
+  c.fillRect(0, 0, W, backdropHeight);
 
   if (stage.tower) {
     for (let i = 0; i < 100; i++) {
@@ -898,17 +906,17 @@ function buildBackdrop() {
   }
   c.globalAlpha = 1;
 
-  shape(c, '#92505c', [[0,160],[21,145],[45,151],[83,113],[96,113],[123,139],[149,129],[184,151],[219,137],[251+shift,153],[285+shift,132],[330,154],[366,129],[385,120],[408,142],[433,126],[480,144],[480,H],[0,H]]);
-  shape(c, '#714052', [[0,156],[34,141],[63,157],[94,151],[128,167],[158,145],[170,144],[197,122],[205,125],[222,144],[236,140],[263,159],[296,148],[329,168],[350,147],[368,151],[400,158],[439,137],[456,143],[480,128],[480,H],[0,H]]);
+  shape(c, '#92505c', [[0,160],[21,145],[45,151],[83,113],[96,113],[123,139],[149,129],[184,151],[219,137],[251+shift,153],[285+shift,132],[330,154],[366,129],[385,120],[408,142],[433,126],[480,144],[480,backdropHeight],[0,backdropHeight]]);
+  shape(c, '#714052', [[0,156],[34,141],[63,157],[94,151],[128,167],[158,145],[170,144],[197,122],[205,125],[222,144],[236,140],[263,159],[296,148],[329,168],[350,147],[368,151],[400,158],[439,137],[456,143],[480,128],[480,backdropHeight],[0,backdropHeight]]);
   shape(c, '#a86166', [[174,143],[197,122],[205,125],[217,137],[203,132],[199,138],[193,133]]);
   shape(c, '#a86166', [[68,128],[83,113],[96,113],[108,126],[96,121],[90,124],[87,119]]);
-  shape(c, '#543144', [[0,180],[33,153],[53,161],[69,157],[89,177],[121,163],[144,177],[179,173],[201,155],[227,165],[247,155],[276,179],[308,161],[332,166],[350,178],[379,155],[402,171],[435,161],[459,172],[480,158],[480,H],[0,H]]);
+  shape(c, '#543144', [[0,180],[33,153],[53,161],[69,157],[89,177],[121,163],[144,177],[179,173],[201,155],[227,165],[247,155],[276,179],[308,161],[332,166],[350,178],[379,155],[402,171],[435,161],[459,172],[480,158],[480,backdropHeight],[0,backdropHeight]]);
 
   for (let i = 0; i < 42; i++) {
     const x = i * 12 + noise(i * 5879) * 14;
     pine(c, x, 217 + (i * 7 % 13), 22 + (i * 13 % 49), '#492a3c');
   }
-  shape(c, '#382333', [[0,202],[28,194],[71,206],[120,198],[150,209],[186,204],[225,211],[271,198],[292,201],[325,207],[354,199],[389,206],[445,193],[480,203],[480,H],[0,H]]);
+  shape(c, '#382333', [[0,202],[28,194],[71,206],[120,198],[150,209],[186,204],[225,211],[271,198],[292,201],[325,207],[354,199],[389,206],[445,193],[480,203],[480,backdropHeight],[0,backdropHeight]]);
   for (let i = 0; i < 30; i++) {
     const x = i * 17 + noise(i * 9917) * 16;
     pine(c, x, 230 + (i * 5 % 11), 25 + (i * 17 % 36), '#342131');
@@ -920,7 +928,7 @@ function buildBackdrop() {
 
 function drawSurface(x, y, width, ground) {
   const [face, shade, deep, top, rim] = stage.stone;
-  const height = ground ? (stage.tower ? TOWER_BOTTOM : H) - y : 11;
+  const height = ground ? (stage.tower ? TOWER_BOTTOM : CLASSIC_HEIGHT) - y : 11;
   rect(ctx, deep, x + 2, y + 2, width - 4, height + 1);
   rect(ctx, face, x + 1, y + 3, width - 2, height - 3);
   for (let row = 0; row < height - 5; row += 5) {
@@ -1040,14 +1048,13 @@ function drawTowerWalls(cameraY) {
 }
 
 function draw() {
-  // Paint the full viewport before moving into world coordinates.
-  ctx.drawImage(background, 0, 0);
+  const worldHeight = stage.tower ? TOWER_BOTTOM : CLASSIC_HEIGHT;
+  const playerScreenY = H * (stage.tower ? .48 : .22);
+  const cameraY = Math.round(Math.max(0, Math.min(worldHeight - H, player.y - playerScreenY)));
+  ctx.drawImage(background, 0, stage.tower ? 0 : -cameraY);
   ctx.save();
-  if (stage.tower) {
-    const cameraY = Math.round(Math.max(0, Math.min(TOWER_BOTTOM - H, player.y - H * .48)));
-    ctx.translate(0, -cameraY);
-    drawTowerWalls(cameraY);
-  }
+  ctx.translate(0, -cameraY);
+  if (stage.tower) drawTowerWalls(cameraY);
   for (let i = 0; i < 31; i++) {
     const x = ((i * 61 + elapsed * (3 + i % 5)) % W + W) % W;
     const y = 122 + (i * 31 % 112) + Math.sin(elapsed * 2 + i) * 3;
@@ -1085,9 +1092,11 @@ function startCourse() {
 
 startCourse();
 portraitPhone.addEventListener('change', startCourse);
-new ResizeObserver(() => {
+function resizePlayfield() {
   if (fitPlayfield()) buildBackdrop();
-}).observe(frame);
+}
+landscapePhone.addEventListener('change', resizePlayfield);
+new ResizeObserver(resizePlayfield).observe(frame);
 let previous = performance.now();
 let accumulator = 0;
 function tick(now) {
