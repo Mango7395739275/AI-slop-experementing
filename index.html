@@ -457,6 +457,9 @@ const HEIGHT = 16;
 const WIDTH = 11;
 const FLOOR = 224;
 const STEP = 1 / 500;
+const PEE_WINDUP = .35;
+const PEE_FLOW_END = 1.65;
+const PEE_DURATION = 2.2;
 const classicStages = [
   {
     name: 'The Cinderwilds', sky: ['#311c32', '#9c4b47', '#e99561'], sun: '#ffbf77', sunX: 271,
@@ -538,6 +541,10 @@ let elapsed = 0;
 let grace = 0;
 let jumpBuffer = 0;
 let invincible = 0;
+let nextPeeAt;
+let peeStartedAt = -Infinity;
+let nextPeeDropAt;
+const peeDrops = [];
 let soundEnabled = true;
 let audioContext;
 
@@ -636,6 +643,8 @@ function loadStage(index) {
   collected = 0;
   invincible = 0;
   particles.length = 0;
+  peeStartedAt = -Infinity;
+  peeDrops.length = 0;
   resetPlayer();
   fitPlayfield();
   buildBackdrop();
@@ -689,6 +698,7 @@ function completeStage() {
 }
 
 function takeHit(x, y) {
+  peeStartedAt = -Infinity;
   life -= 1;
   burst(x, y, '#ff7755', 14);
   playSound([[0, 190, .13], [.07, 110, .2]]);
@@ -839,6 +849,52 @@ function burst(x, y, color, amount) {
   }
 }
 
+function updatePeeAnimation(dt) {
+  if (!player.ground) {
+    peeStartedAt = -Infinity;
+  } else if (elapsed >= nextPeeAt && !invincible) {
+    peeStartedAt = elapsed;
+    nextPeeAt = elapsed + 15 + Math.random() * 15;
+    nextPeeDropAt = elapsed + PEE_WINDUP;
+  }
+
+  const pose = elapsed - peeStartedAt;
+  if (elapsed >= nextPeeDropAt && pose < PEE_FLOW_END) {
+    const pressure = Math.min(1, (pose - PEE_WINDUP) / .2, (PEE_FLOW_END - pose) / .28);
+    peeDrops.push({
+      x: Math.round(player.x + WIDTH / 2) + player.facing * 5,
+      y: Math.round(player.y) + 12,
+      vx: player.facing * (25 + pressure * 52 + Math.random() * 5),
+      vy: -6 - pressure * 20 + Math.random() * 4,
+      life: 1,
+      splash: false
+    });
+    nextPeeDropAt += .014;
+  }
+
+  for (let i = peeDrops.length - 1; i >= 0; i--) {
+    const drop = peeDrops[i];
+    const oldY = drop.y;
+    drop.x += drop.vx * dt;
+    drop.vy += 280 * dt;
+    drop.y += drop.vy * dt;
+    drop.life -= dt;
+    const surface = drop.vy > 0 && surfaces.find(([x, y, width]) =>
+      oldY <= y && drop.y >= y && drop.x >= x && drop.x < x + width
+    );
+    if (surface && !drop.splash && Math.random() < .4) {
+      for (const direction of [-1, 1]) {
+        peeDrops.push({
+          x: drop.x, y: surface[1] - 1,
+          vx: direction * (9 + Math.random() * 15), vy: -12 - Math.random() * 16,
+          life: .22, splash: true
+        });
+      }
+    }
+    if (surface || drop.life <= 0 || drop.x < 0 || drop.x >= W) peeDrops.splice(i, 1);
+  }
+}
+
 function update(dt) {
   elapsed += dt;
   invincible = Math.max(0, invincible - dt);
@@ -934,6 +990,7 @@ function update(dt) {
     p.vy += 115 * dt;
   }
 
+  updatePeeAnimation(dt);
   const [gateX, gateY] = stage.gate;
   if (collected === embers.length && overlaps(gateX - 6, gateY - 24, 12, 24)) completeStage();
 }
@@ -1116,25 +1173,41 @@ function drawCrawler(crawler) {
 
 function drawPlayer() {
   if (invincible > 0 && Math.floor(invincible * 16) % 2) return;
-  const stride = player.ground && Math.abs(player.vx) > 20 ? Math.floor(elapsed * 14) % 2 : 0;
+  const running = player.ground && Math.abs(player.vx) > 20;
+  const stride = running ? Math.floor(elapsed * 14) % 2 : 0;
+  const pose = elapsed - peeStartedAt;
+  const preparing = pose >= .12 && pose < PEE_WINDUP;
+  const flowing = pose >= PEE_WINDUP && pose < PEE_FLOW_END;
+  const shaking = pose >= PEE_FLOW_END && pose < PEE_FLOW_END + .2;
+  const shakingOffset = shaking ? Math.round(Math.sin((pose - PEE_FLOW_END) * 75)) : 0;
+  const armDown = pose >= .2 && pose < PEE_DURATION - .15;
+  const braced = armDown && !running;
+  const headX = flowing ? -1 : shakingOffset;
+  const headY = preparing ? 1 : 0;
   ctx.save();
   ctx.translate(Math.round(player.x + WIDTH / 2), Math.round(player.y));
   ctx.scale(player.facing, 1);
   rect(ctx, '#2e1d26', -5, 1, 10, 13);
-  rect(ctx, '#fa9a53', -4, 0, 7, 7);
-  rect(ctx, '#ffd486', -3, 0, 5, 1);
-  rect(ctx, '#e07441', -5, 3, 10, 5);
-  rect(ctx, '#442637', -2, 3, 7, 4);
-  rect(ctx, '#fff0b6', 1, 4, 3, 1);
+  rect(ctx, '#fa9a53', -4 + headX, headY, 7, 7);
+  rect(ctx, '#ffd486', -3 + headX, headY, 5, 1);
+  rect(ctx, '#e07441', -5 + headX, 3 + headY, 10, 5);
+  rect(ctx, '#442637', -2 + headX, 3 + headY, 7, 4);
+  rect(ctx, '#fff0b6', 1 + headX, 4 + headY + Number(preparing), 3, 1);
   rect(ctx, '#8b3d3e', -4, 8, 8, 5);
   rect(ctx, '#ffa04f', -5, 7, 10, 2);
   rect(ctx, '#e6663c', -9, stride ? 6 : 8, 5, 2);
   rect(ctx, '#f6a350', -10, stride ? 5 : 9, 3, 1);
-  rect(ctx, '#e88a51', 3, 9, 2, 3);
-  rect(ctx, '#392738', -4, 12, 3, 3 + stride);
-  rect(ctx, '#392738', 1, 12, 3, 4 - stride);
-  rect(ctx, '#bc795f', -5, 14 + stride, 4, 1);
-  rect(ctx, '#bc795f', 1, 15 - stride, 4, 1);
+  if (armDown) {
+    rect(ctx, '#e88a51', 2, 9, 2, 3);
+    rect(ctx, '#ffbd74', 4 + shakingOffset, 11, 2, 1);
+  } else {
+    rect(ctx, '#e88a51', 3, 9, 2, 3);
+  }
+  const backFootY = braced ? 15 : 14 + stride;
+  rect(ctx, '#392738', braced ? -5 : -4, 12, 3, backFootY - 11);
+  rect(ctx, '#392738', braced ? 2 : 1, 12, 3, 4 - stride);
+  rect(ctx, '#bc795f', braced ? -6 : -5, backFootY, 4, 1);
+  rect(ctx, '#bc795f', braced ? 2 : 1, 15 - stride, 4, 1);
   ctx.restore();
 }
 
@@ -1178,6 +1251,10 @@ function draw() {
   for (const crawler of crawlers) {
     if (crawler.alive) drawCrawler(crawler);
   }
+  for (const drop of peeDrops) {
+    const color = drop.splash ? '#ffce7199' : '#ffe17e';
+    rect(ctx, color, drop.x, drop.y, drop.splash ? 1 : 2, 1);
+  }
   drawPlayer();
   for (const p of particles) rect(ctx, p.color, p.x, p.y, p.time > .2 ? 2 : 1, 1);
   ctx.restore();
@@ -1185,6 +1262,7 @@ function draw() {
 
 function startCourse() {
   stages = portraitPhone.matches ? towerStages : classicStages;
+  nextPeeAt = elapsed + 15 + Math.random() * 15;
   loadStage(0);
   const detail = stage.tower
     ? 'Climb the towers, collect every ember, and reach each summit gate.'
