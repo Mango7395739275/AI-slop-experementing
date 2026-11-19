@@ -170,7 +170,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
 @media (pointer: coarse) {
   .key { min-width: 47px; min-height: 44px; }
 }
-.mobile-controls, .mobile-pause { display: none; }
+.mobile-controls, .mobile-controls[hidden], .mobile-pause { display: none; }
 .touch-control {
   display: grid;
   place-items: center;
@@ -180,7 +180,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   border: 1px solid #ffd18a99;
   border-radius: 18px;
   color: #fff0cf;
-  background: #271b22c9;
+  background: #271b22;
   box-shadow: inset 0 1px #ffe3b633, 0 3px 0 #140e13a6;
   font: 800 1.7rem ui-monospace, Consolas, monospace;
   touch-action: none;
@@ -188,7 +188,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-.touch-control.held, .touch-control:active { background: #815239e8; border-color: #ffd18a; transform: translateY(2px); }
+.touch-control.held, .touch-control:active { background: #815239; border-color: #ffd18a; transform: translateY(2px); }
 .move-buttons { display: flex; gap: 10px; }
 .jump-control { width: clamp(74px, 15vw, 100px); border-radius: 50%; font: 800 1rem system-ui, sans-serif; }
 @media (max-width: 600px) {
@@ -251,7 +251,15 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   .frame { display: grid; min-width: 0; min-height: 0; }
   canvas { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; object-fit: contain; }
   .veil { overflow: auto; }
-  .mobile-controls { display: flex; align-items: flex-end; justify-content: space-between; }
+  .mobile-controls {
+    position: absolute;
+    inset: auto 8px 8px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .touch-control { pointer-events: auto; }
 }
 @media (max-width: 350px) {
   .toolbar .brand-mark { display: none; }
@@ -281,12 +289,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   .toolbar { position: absolute; inset: 0 0 auto auto; }
   .brand { display: none; }
   .actions { flex-direction: column; gap: 4px; }
-  .mobile-controls {
-    position: absolute;
-    inset: auto 0 0;
-    pointer-events: none;
-  }
-  .touch-control { pointer-events: auto; width: clamp(44px, 9vw, 58px); }
+  .touch-control { width: clamp(44px, 9vw, 58px); height: 44px; }
   .jump-control { width: clamp(64px, 12vw, 84px); }
   .hud { padding: 6px; }
   .stage-label, .meters { padding: 5px 7px; font-size: .8rem; }
@@ -296,8 +299,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
   .primary { min-height: 44px; }
 
   @media (max-aspect-ratio: 14 / 5) {
-    .arcade { --play-height: calc(100dvh - var(--top-inset) - var(--bottom-inset) - 54px); grid-template-rows: minmax(0, 1fr) auto; }
-    .mobile-controls { position: static; width: 100%; }
+    .arcade { --play-height: calc(100dvh - var(--top-inset) - var(--bottom-inset) - 54px); grid-template-rows: minmax(0, 1fr) 48px; }
     .toolbar { inset: auto auto 2px; z-index: 1; }
     .actions { flex-direction: row; }
   }
@@ -335,6 +337,13 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
         </div>
       </div>
     </div>
+    <div class="mobile-controls" role="group" aria-label="Touch movement controls" hidden>
+      <div class="move-buttons">
+        <button class="touch-control" type="button" data-action="left" aria-label="Move left">←</button>
+        <button class="touch-control" type="button" data-action="right" aria-label="Move right">→</button>
+      </div>
+      <button class="touch-control jump-control" type="button" data-action="jump">Jump</button>
+    </div>
     <div class="veil" id="veil" hidden>
       <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="message" aria-describedby="detail">
         <h2 id="message"></h2>
@@ -343,14 +352,6 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
       </div>
     </div>
   </section>
-
-  <div class="mobile-controls" role="group" aria-label="Touch movement controls">
-    <div class="move-buttons">
-      <button class="touch-control" type="button" data-action="left" aria-label="Move left">←</button>
-      <button class="touch-control" type="button" data-action="right" aria-label="Move right">→</button>
-    </div>
-    <button class="touch-control jump-control" type="button" data-action="jump">Jump</button>
-  </div>
 
   <footer class="help">
     <div class="keys" aria-label="Game controls">
@@ -385,6 +386,7 @@ const CLASSIC_HEIGHT = canvas.height;
 let W = CLASSIC_WIDTH;
 let H = CLASSIC_HEIGHT;
 const frame = document.getElementById('frame');
+const mobileControls = frame.querySelector('.mobile-controls');
 const portraitPhone = window.matchMedia('(max-width: 600px) and (orientation: portrait)');
 const veil = document.getElementById('veil');
 const continueButton = document.getElementById('continue');
@@ -564,12 +566,14 @@ function resume() {
   const focusGame = mode !== undefined;
   mode = 'play';
   veil.hidden = true;
+  mobileControls.hidden = false;
   clearInput();
   if (focusGame) frame.focus({ preventScroll: true });
 }
 
 function showDialog(nextMode, title, detail, buttonLabel) {
   mode = nextMode;
+  mobileControls.hidden = true;
   clearInput();
   document.getElementById('message').textContent = title;
   document.getElementById('detail').textContent = detail;
