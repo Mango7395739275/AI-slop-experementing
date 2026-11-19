@@ -377,7 +377,10 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
         <button class="touch-control" type="button" data-action="left" aria-label="Move left">←</button>
         <button class="touch-control" type="button" data-action="right" aria-label="Move right">→</button>
       </div>
-      <button class="touch-control jump-control" type="button" data-action="jump">Jump</button>
+      <div class="move-buttons">
+        <button class="touch-control jump-control" type="button" data-action="dash">Dash</button>
+        <button class="touch-control jump-control" type="button" data-action="jump">Jump</button>
+      </div>
     </div>
     <div class="veil" id="veil" hidden>
       <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="message" aria-describedby="detail">
@@ -397,7 +400,11 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; imag
       </div>
       <div class="key-group">
         <button class="key" type="button" data-action="jump" aria-label="Jump" title="Jump (Space, Up arrow or W)">Space</button>
-        <span>Jump</span>
+        <span>Jump / Double jump</span>
+      </div>
+      <div class="key-group">
+        <button class="key" type="button" data-action="dash" aria-label="Dash" title="Dash (X). Dashing in midair grants an extra jump.">X</button>
+        <span>Dash / Extra air jump</span>
       </div>
       <div class="key-group">
         <button class="key" type="button" data-action="fastFall" aria-label="Fall faster" title="Fall faster (Down arrow)">↓</button>
@@ -508,6 +515,24 @@ const classicStages = [
     spikes: [[145, FLOOR, 25], [271, FLOOR, 27], [393, FLOOR, 28]],
     crawlers: [[63, 78, FLOOR, -1], [169, 192, 144, 1], [228, 255, 168, -1], [347, 376, 168, 1], [432, 452, FLOOR, -1]],
     gate: [467, FLOOR]
+  },
+  {
+    name: 'Windcut Walk', sky: ['#202944', '#5c587a', '#d18b6d'], sun: '#ffd29c', sunX: 204,
+    stone: ['#474762', '#343650', '#24273b', '#ad8597', '#efd0ab'],
+    ground: [[0, FLOOR, 86], [415, FLOOR, 65]],
+    ledges: [[74, 198, 38], [139, 152, 42], [221, 135, 36], [334, 109, 42], [380, 154, 42], [410, 192, 45]],
+    embers: [[93, 182], [160, 136], [239, 119], [355, 93], [401, 138], [432, 176]],
+    spikes: [], crawlers: [], gate: [456, FLOOR],
+    tip: 'Jump and dash over the gaps. An air dash gives you one extra jump.'
+  },
+  {
+    name: 'The Switchback', sky: ['#2a1c39', '#66445f', '#ae6c62'], sun: '#ffc287', sunX: 321,
+    stone: ['#59425a', '#3e304a', '#292238', '#c78775', '#f6b99a'],
+    ground: [[0, FLOOR, 94], [398, FLOOR, 82]],
+    ledges: [[62, 197, 46], [143, 165, 42], [193, 65, 56], [282, 111, 47], [359, 153, 45], [411, 194, 49]],
+    embers: [[83, 181], [164, 149], [220, 49], [305, 95], [381, 137], [435, 178]],
+    spikes: [], crawlers: [], gate: [463, FLOOR],
+    tip: 'For the tall ledge, double jump, dash in midair, then jump again.'
   }
 ];
 const TOWER_WIDTH = 240;
@@ -562,6 +587,19 @@ const towerStages = [
     spikes: [[160, 939, 16], [72, 866, 16], [105, 716, 22], [57, 565, 16], [163, 413, 18], [68, 258, 17]],
     crawlers: [[131, 180, 1010, -1], [102, 127, 866, 1], [157, 173, 638, -1], [28, 48, 488, 1], [158, 199, 338, -1]],
     gate: [142, 183]
+  },
+  {
+    name: 'Stormneedle Tower', tower: true,
+    sky: ['#1d203b', '#4b4571', '#936080'],
+    stone: ['#484867', '#363553', '#27283e', '#a58ab9', '#e0b8d0'],
+    ground: [[0, TOWER_FLOOR, TOWER_WIDTH]],
+    ledges: [
+      [22, 1065, 62], [112, 972, 65], [145, 874, 61], [48, 777, 65],
+      [148, 535, 64], [62, 442, 65], [28, 344, 64], [116, 247, 68], [137, 151, 73]
+    ],
+    embers: [[53, 1049], [145, 956], [175, 858], [80, 761], [180, 519], [94, 426], [60, 328], [150, 231], [173, 135]],
+    spikes: [], crawlers: [], gate: [174, 151],
+    tip: 'Double jump, dash across the shaft, then use the extra jump to reach the next ledge.'
   }
 ];
 let stages = classicStages;
@@ -579,6 +617,11 @@ let physics;
 let elapsed = 0;
 let grace = 0;
 let jumpBuffer = 0;
+let airJumps = 1;
+let dashJumpGranted = false;
+let dashTime = 0;
+let dashCooldown = 0;
+let dashDirection = 1;
 let invincible = 0;
 let nextPeeDropAt;
 const peeDrops = [];
@@ -671,6 +714,10 @@ function fitPlayfield() {
 }
 
 function resetPlayer() {
+  airJumps = 1;
+  dashJumpGranted = false;
+  dashTime = 0;
+  dashCooldown = 0;
   const floor = stage.ground[0][1];
   Object.assign(player, { x: 22, y: floor - HEIGHT, vx: 0, vy: 0, ground: true, facing: 1 });
   grace = 0;
@@ -739,7 +786,9 @@ function completeStage() {
     const detail = 'You recovered every ember across all ' + stages.length + ' stages.';
     showDialog('win', 'The fire is restored', detail, 'Play again');
   } else {
-    showDialog('clear', 'Stage cleared', stages[stageIndex + 1].name + ' awaits.', 'Next stage');
+    const next = stages[stageIndex + 1];
+    const detail = next.name + ' awaits.' + (next.tip ? ' ' + next.tip : '');
+    showDialog('clear', 'Stage cleared', detail, 'Next stage');
   }
 }
 
@@ -774,8 +823,22 @@ function updateKeys() {
 
 const bindings = {
   ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowDown: 'fastFall',
-  ArrowUp: 'jump', w: 'jump', ' ': 'jump', p: 'pause', Escape: 'pause', r: 'restart'
+  ArrowUp: 'jump', w: 'jump', ' ': 'jump', x: 'dash', p: 'pause', Escape: 'pause', r: 'restart'
 };
+
+function startDash() {
+  if (dashCooldown > 0) return;
+  dashDirection = player.facing;
+  dashTime = .14;
+  dashCooldown = .7;
+  const earnsJump = !player.ground && !dashJumpGranted;
+  if (earnsJump) {
+    airJumps += 1;
+    dashJumpGranted = true;
+  }
+  burst(player.x + WIDTH / 2, player.y + HEIGHT / 2, earnsJump ? '#a9e9f2' : '#ffd39a', 7);
+  playSound([[0, 275, .08], [.04, 480, .11]]);
+}
 
 document.addEventListener('keydown', event => {
   if (physicsDialog.open) return;
@@ -791,6 +854,7 @@ document.addEventListener('keydown', event => {
   event.preventDefault();
   if (action === 'pause' && !event.repeat) togglePause();
   if (action === 'restart' && !event.repeat) loadStage(mode === 'win' ? 0 : stageIndex);
+  if (action === 'dash' && mode === 'play' && !event.repeat) startDash();
   if (mode !== 'play' || !['left', 'right', 'jump', 'fastFall'].includes(action)) return;
   if (event.repeat && !pressedKeys.has(event.code)) return;
   pressedKeys.set(event.code, action);
@@ -824,6 +888,7 @@ for (const button of controlButtons) {
     button.setPointerCapture(event.pointerId);
     pointers.set(event.pointerId, action);
     if (action === 'jump') jumpBuffer = .13;
+    if (action === 'dash') startDash();
     updateKeys();
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
@@ -836,6 +901,8 @@ for (const button of controlButtons) {
     if (event.detail !== 0 || mode !== 'play') return;
     if (action === 'jump') {
       jumpBuffer = .13;
+    } else if (action === 'dash') {
+      startDash();
     } else {
       const speed = Math.min(96, physics.speed);
       player.vx = action === 'left' ? -speed : speed;
@@ -986,6 +1053,8 @@ function update(dt) {
   }
   invincible = Math.max(0, invincible - dt);
   jumpBuffer = Math.max(0, jumpBuffer - dt);
+  dashCooldown = Math.max(0, dashCooldown - dt);
+  dashTime = Math.max(0, dashTime - dt);
   grace = player.ground ? .085 : Math.max(0, grace - dt);
   const move = Number(active('right')) - Number(active('left'));
   const speed = move * physics.speed;
@@ -995,7 +1064,12 @@ function update(dt) {
   const acceleration = (move ? 1800 : 2400) * (onPuddle ? .12 : 1) * dt;
   player.vx += Math.max(-acceleration, Math.min(acceleration, speed - player.vx));
   if (move) player.facing = move;
-  if (jumpBuffer && grace) {
+  if (dashTime > 0) {
+    player.vx = dashDirection * Math.max(300, physics.speed * 1.4);
+    player.facing = dashDirection;
+  }
+  if (jumpBuffer && (grace || airJumps > 0)) {
+    if (!grace) airJumps -= 1;
     player.vy = -Math.sqrt(2 * physics.gravity * physics.jumpHeight);
     player.ground = false;
     jumpBuffer = 0;
@@ -1022,6 +1096,8 @@ function update(dt) {
       player.y = landing - HEIGHT;
       player.vy = 0;
       player.ground = true;
+      airJumps = 1;
+      dashJumpGranted = false;
     }
   }
 
@@ -1303,7 +1379,9 @@ function drawTowerWalls(cameraY) {
 function draw() {
   const worldHeight = stage.tower ? TOWER_BOTTOM : CLASSIC_HEIGHT;
   const playerScreenY = H * (stage.tower ? .48 : .22);
-  const cameraY = Math.round(Math.max(0, Math.min(worldHeight - H, player.y - playerScreenY)));
+  const upperLimit = Math.min(0, player.y - 12);
+  const cameraY = Math.round(Math.max(upperLimit, Math.min(worldHeight - H, player.y - playerScreenY)));
+  if (!stage.tower && cameraY < 0) rect(ctx, stage.sky[0], 0, 0, W, -cameraY);
   ctx.drawImage(background, 0, stage.tower ? 0 : -cameraY);
   ctx.save();
   ctx.translate(0, -cameraY);
