@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15100f">
+<title>Emberbound</title>
+<style>
+:root {
+  color-scheme: dark;
+  --paper: #ffe6bd;
+  --muted: #c2a28b;
+  --amber: #ffb45e;
+  --line: #4e352b;
+  --panel: #251a16;
+  font: 16px system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  overflow-x: hidden;
+  color: var(--paper);
+  background: radial-gradient(ellipse at 50% 26%, #2b1c19, #15100f 73%);
+}
+.arcade { width: min(1216px, 100%); padding-block: clamp(8px, 2.5vh, 24px); }
+.toolbar, .brand, .actions, .help, .keys, .key-group, .meters {
+  display: flex;
+  align-items: center;
+}
+.toolbar { justify-content: space-between; gap: 12px; margin-bottom: 17px; }
+.brand { gap: 12px; }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  background: #3e2418;
+  border: 1px solid #8a512e;
+  border-radius: 10px;
+}
+.flame {
+  width: 22px;
+  height: 25px;
+  background: linear-gradient(#ffe9ae, #ffb052 64%, #ef683c);
+  clip-path: polygon(53% 0, 70% 27%, 70% 40%, 85% 31%, 100% 60%, 100% 80%, 78% 100%, 22% 100%, 0 80%, 0 60%, 17% 42%, 17% 60%, 31% 46%, 31% 24%);
+}
+h1 {
+  margin: 0;
+  font: 800 clamp(1.05rem, 2.9vw, 1.75rem)/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .12em;
+}
+.actions { gap: 8px; }
+button {
+  font: inherit;
+  font-weight: 700;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+}
+button:hover { background: #40281d; border-color: #996344; }
+button:focus-visible { outline: 2px solid #ffcf85; outline-offset: 4px; }
+.utility { display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 0 12px; }
+.utility .icon { font-size: 1.22rem; line-height: 1; color: var(--amber); }
+.frame {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid #87573a;
+  border-radius: 12px;
+  background: #2b1b25;
+  box-shadow: 0 18px 50px #09050480, 0 0 0 4px #2d201a;
+}
+.frame:focus { outline: none; }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 120 / 61; image-rendering: pixelated; }
+.hud {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: clamp(8px, 2.4vw, 25px);
+  pointer-events: none;
+}
+.stage-label, .meters {
+  border: 1px solid #8e5946;
+  border-radius: 8px;
+  background: #21151ce8;
+  box-shadow: 0 3px 0 #21151c61;
+}
+.stage-label {
+  padding: .48rem .68rem .54rem;
+  font: 700 clamp(.85rem, 2vw, 1.13rem)/1.2 ui-monospace, Consolas, monospace;
+}
+.stage-label small {
+  display: block;
+  margin-bottom: .24rem;
+  font-size: .72em;
+  letter-spacing: .12em;
+  color: var(--amber);
+}
+.meters { gap: .75rem; padding: .58rem .68rem; font: 700 .95rem ui-monospace, Consolas, monospace; }
+.counter, .hearts { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.hearts { border-left: 1px solid #765140; padding-left: .75rem; }
+.diamond {
+  display: inline-block;
+  width: .85em;
+  height: .95em;
+  background: #ffbf65;
+  box-shadow: inset 0 0 0 3px #ea7c3e;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.heart {
+  display: inline-block;
+  width: 15px;
+  height: 14px;
+  background: linear-gradient(#ff9576 15%, #ec614d 16%);
+  clip-path: polygon(0 22%, 13% 22%, 13% 7%, 39% 7%, 39% 22%, 61% 22%, 61% 7%, 87% 7%, 87% 22%, 100% 22%, 100% 59%, 50% 100%, 0 59%);
+}
+.heart.lost { background: #63433e; }
+.veil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #170d17bc;
+  padding: 8px;
+}
+.veil[hidden] { display: none; }
+.dialog {
+  width: min(100%, 350px);
+  padding: clamp(9px, 3vw, 29px);
+  text-align: center;
+  border: 1px solid #9b6141;
+  border-radius: 11px;
+  background: #2b1b19;
+  box-shadow: 0 12px 30px #130a0caf;
+}
+.dialog h2 { margin: 0; font: 800 clamp(1.03rem, 4vw, 1.8rem) ui-monospace, Consolas, monospace; }
+.dialog p { margin: 7px 0 14px; color: #e4bda4; font-size: .9rem; }
+.primary {
+  padding: 8px 16px;
+  border-color: #ffbf76;
+  background: #ffb263;
+  color: #271612;
+}
+.primary:hover { background: #ffd091; }
+.help { justify-content: space-between; gap: 12px 20px; margin-top: clamp(10px, 2vh, 17px); flex-wrap: wrap; }
+.keys { flex-wrap: wrap; gap: 10px clamp(8px, 2vw, 18px); }
+.key-group { gap: 6px; }
+.key-group > span { margin-left: 2px; color: var(--muted); font-size: .86rem; }
+.key {
+  padding: 5px 9px;
+  min-width: 34px;
+  min-height: 32px;
+  font: 700 .85rem ui-monospace, Consolas, monospace;
+  box-shadow: 0 2px #120c0b;
+  touch-action: none;
+  user-select: none;
+}
+.key.held, .key:active { background: #61402c; color: #fff3d2; border-color: #d49155; }
+.objective { display: flex; align-items: center; gap: 8px; margin: 0; color: #e0b694; font-size: .9rem; }
+@media (pointer: coarse) {
+  .key { min-width: 47px; min-height: 44px; }
+}
+.mobile-controls, .mobile-pause { display: none; }
+.touch-control {
+  display: grid;
+  place-items: center;
+  width: clamp(48px, 11vw, 68px);
+  height: clamp(48px, 8dvh, 68px);
+  padding: 0;
+  border: 1px solid #ffd18a99;
+  border-radius: 18px;
+  color: #fff0cf;
+  background: #271b22c9;
+  box-shadow: inset 0 1px #ffe3b633, 0 3px 0 #140e13a6;
+  font: 800 1.7rem ui-monospace, Consolas, monospace;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.touch-control.held, .touch-control:active { background: #815239e8; border-color: #ffd18a; transform: translateY(2px); }
+.move-buttons { display: flex; gap: 10px; }
+.jump-control { width: clamp(74px, 15vw, 100px); border-radius: 50%; font: 800 1rem system-ui, sans-serif; }
+@media (max-width: 600px) {
+  .arcade { padding-block: 5px; }
+  .brand { gap: 7px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 6px; }
+  .flame { width: 15px; height: 18px; }
+  .toolbar { margin-bottom: 12px; }
+  .actions { gap: 4px; }
+  .utility { min-width: 38px; min-height: 38px; padding: 0 7px; justify-content: center; }
+  .utility .label { display: none; }
+  .meters { gap: 5px; font-size: clamp(.68rem, 3vw, .8rem); padding: 5px; }
+  .hearts { gap: 3px; padding-left: 6px; }
+  .heart { width: 11px; height: 10px; }
+  .stage-label { padding: 5px 6px; }
+  .stage-label small { margin-bottom: 2px; }
+  .keys { gap: 7px 10px; width: 100%; justify-content: space-between; }
+  .help { margin-top: 9px; }
+  .objective { flex-basis: 100%; }
+  .key-group { gap: 4px; }
+  .key-group > span { font-size: clamp(.72rem, 3vw, .86rem); }
+  .utility { font-size: .88rem; }
+}
+@media (max-width: 380px) {
+  .toolbar { align-items: flex-start; }
+  h1 { font-size: 1rem; }
+  .meters { gap: 4px; font-size: .72rem; }
+  .stage-label { font-size: .76rem; }
+  .keys { gap: 8px; }
+  .key-group > span { font-size: .78rem; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  body { place-items: start center; }
+  .arcade { padding-block: 6px; }
+  .toolbar { margin-bottom: 7px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .flame { width: 16px; height: 19px; }
+  .help { margin-top: 8px; }
+  .key { min-height: 34px; }
+}
+@media (max-width: 600px), (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  body {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    place-items: stretch center;
+  }
+  .arcade {
+    display: grid;
+    grid-template-rows: auto minmax(112px, 1fr) auto;
+    gap: 9px;
+    min-height: 0;
+    width: 100%;
+    padding: 0;
+  }
+  .toolbar { margin: 0; align-items: center; gap: 6px; }
+  .utility { min-width: 44px; min-height: 44px; }
+  .utility .label, .help { display: none; }
+  .mobile-pause { display: flex; }
+  .frame { display: grid; min-width: 0; min-height: 0; }
+  canvas { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; object-fit: contain; }
+  .veil { overflow: auto; }
+  .mobile-controls { display: flex; align-items: flex-end; justify-content: space-between; }
+}
+@media (max-width: 350px) {
+  .toolbar .brand-mark { display: none; }
+}
+</style>
+</head>
+<body>
+<main class="arcade">
+  <header class="toolbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><span class="flame"></span></span>
+      <h1>EMBERBOUND</h1>
+    </div>
+    <div class="actions">
+      <button class="utility mobile-pause" type="button" data-action="pause" aria-label="Pause game">
+        <span class="icon" aria-hidden="true">Ⅱ</span>
+      </button>
+      <button class="utility" id="sound" type="button" aria-label="Mute sound" title="Mute sound">
+        <span class="icon" aria-hidden="true">♪</span><span class="label">Sound on</span>
+      </button>
+      <button class="utility" id="restart" type="button" aria-label="Restart stage" title="Restart stage (R)">
+        <span class="icon" aria-hidden="true">↻</span><span class="label">Restart</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="frame" id="frame" tabindex="-1" aria-label="Emberbound game">
+    <canvas id="game" width="480" height="244">Use a browser with canvas support to play Emberbound.</canvas>
+    <div class="hud">
+      <div class="stage-label"><small id="stage-number"></small><span id="stage-name"></span></div>
+      <div class="meters">
+        <div class="counter"><span class="diamond" aria-hidden="true"></span><span id="count"></span></div>
+        <div class="hearts" id="hearts" role="img" aria-label="3 lives">
+          <span class="heart" aria-hidden="true"></span><span class="heart" aria-hidden="true"></span><span class="heart" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+    <div class="veil" id="veil" hidden>
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="message" aria-describedby="detail">
+        <h2 id="message"></h2>
+        <p id="detail"></p>
+        <button class="primary" id="continue" type="button"></button>
+      </div>
+    </div>
+  </section>
+
+  <div class="mobile-controls" role="group" aria-label="Touch movement controls">
+    <div class="move-buttons">
+      <button class="touch-control" type="button" data-action="left" aria-label="Move left">←</button>
+      <button class="touch-control" type="button" data-action="right" aria-label="Move right">→</button>
+    </div>
+    <button class="touch-control jump-control" type="button" data-action="jump">Jump</button>
+  </div>
+
+  <footer class="help">
+    <div class="keys" aria-label="Game controls">
+      <div class="key-group">
+        <button class="key" type="button" data-action="left" aria-label="Move left" title="Move left (Left arrow or A)">←</button>
+        <button class="key" type="button" data-action="right" aria-label="Move right" title="Move right (Right arrow or D)">→</button>
+        <span>Move</span>
+      </div>
+      <div class="key-group">
+        <button class="key" type="button" data-action="jump" aria-label="Jump" title="Jump (Space, Up arrow or W)">Space</button>
+        <span>Jump</span>
+      </div>
+      <div class="key-group">
+        <button class="key" type="button" data-action="fastFall" aria-label="Fall faster" title="Fall faster (Down arrow)">↓</button>
+        <span>Fall faster</span>
+      </div>
+      <div class="key-group">
+        <button class="key" type="button" data-action="pause" aria-label="Pause or resume" title="Pause or resume (P or Escape)">P</button>
+        <span>Pause</span>
+      </div>
+    </div>
+    <p class="objective" id="objective" aria-live="polite"></p>
+  </footer>
+</main>
+<script>
+'use strict';
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const CLASSIC_WIDTH = canvas.width;
+const CLASSIC_HEIGHT = canvas.height;
+let W = CLASSIC_WIDTH;
+let H = CLASSIC_HEIGHT;
+const frame = document.getElementById('frame');
+const portraitPhone = window.matchMedia('(max-width: 600px) and (orientation: portrait)');
+const veil = document.getElementById('veil');
+const continueButton = document.getElementById('continue');
+const soundButton = document.getElementById('sound');
+const numberLabel = document.getElementById('stage-number');
+const nameLabel = document.getElementById('stage-name');
+const countLabel = document.getElementById('count');
+const hearts = document.getElementById('hearts');
+const objective = document.getElementById('objective');
+const HEIGHT = 16;
+const WIDTH = 11;
+const FLOOR = 224;
+const STEP = 1 / 500;
+const classicStages = [
+  {
+    name: 'The Cinderwilds', sky: ['#311c32', '#9c4b47', '#e99561'], sun: '#ffbf77', sunX: 271,
+    stone: ['#55312f', '#39232a', '#281b26', '#ce8552', '#ffbf78'],
+    ground: [[0, FLOOR, 147], [173, FLOOR, 149], [349, FLOOR, 131]],
+    ledges: [[54, 200, 47], [112, 174, 45], [175, 148, 47], [229, 169, 42], [280, 194, 48], [341, 172, 45], [388, 198, 31]],
+    embers: [[78, 184], [135, 158], [198, 132], [250, 153], [301, 178], [364, 156]],
+    spikes: [], crawlers: [[239, 291, FLOOR, 1]], gate: [440, FLOOR]
+  },
+  {
+    name: 'Ashen Span', sky: ['#202438', '#604459', '#ba776b'], sun: '#f4ab87', sunX: 338,
+    stone: ['#494053', '#322d42', '#252439', '#b87a69', '#f3b38c'],
+    ground: [[0, FLOOR, 93], [131, FLOOR, 90], [253, FLOOR, 78], [370, FLOOR, 110]],
+    ledges: [[44, 199, 41], [94, 174, 40], [149, 149, 37], [205, 169, 39], [255, 145, 40], [309, 173, 40], [364, 198, 39]],
+    embers: [[64, 183], [114, 158], [167, 133], [224, 153], [275, 129], [329, 157]],
+    spikes: [[169, FLOOR, 24], [291, FLOOR, 24]], crawlers: [[392, 430, FLOOR, -1]], gate: [452, FLOOR]
+  },
+  {
+    name: 'The Last Light', sky: ['#1e1b30', '#73364b', '#e07e59'], sun: '#ffab62', sunX: 226,
+    stone: ['#58354a', '#3a233b', '#2c1d33', '#c37358', '#ffab75'],
+    ground: [[0, FLOOR, 86], [121, FLOOR, 71], [226, FLOOR, 86], [347, FLOOR, 133]],
+    ledges: [[41, 199, 38], [90, 173, 37], [141, 146, 38], [194, 165, 37], [245, 137, 39], [298, 158, 37], [347, 184, 41], [403, 197, 32]],
+    embers: [[60, 183], [108, 157], [160, 130], [213, 149], [265, 121], [318, 142]],
+    spikes: [[145, FLOOR, 31], [266, FLOOR, 30], [386, FLOOR, 21]],
+    crawlers: [[207, 220, 165, 1], [413, 437, FLOOR, -1]], gate: [452, FLOOR]
+  }
+];
+const TOWER_WIDTH = 240;
+const TOWER_FLOOR = 1144;
+const TOWER_BOTTOM = TOWER_FLOOR + 28;
+const towerStages = [
+  {
+    name: 'The Ember Tower', tower: true,
+    sky: ['#201b35', '#553b57', '#a35f5a'],
+    stone: ['#55384a', '#39283e', '#271d32', '#cf8260', '#ffc078'],
+    ground: [[0, TOWER_FLOOR, TOWER_WIDTH]],
+    ledges: [
+      [24, 1080, 66], [118, 1016, 70], [153, 952, 68],
+      [69, 888, 72], [22, 824, 67], [108, 760, 70],
+      [154, 696, 60], [76, 632, 68], [27, 568, 68],
+      [119, 504, 68], [152, 440, 64], [66, 376, 67],
+      [23, 312, 66], [91, 248, 67], [82, 184, 84]
+    ],
+    embers: [[57, 1064], [179, 936], [54, 808], [191, 680], [63, 552], [177, 424], [50, 296]],
+    spikes: [[120, 760, 17], [72, 376, 18]],
+    crawlers: [[111, 129, 888, 1], [122, 171, 504, -1]],
+    gate: [124, 184]
+  },
+  {
+    name: 'Ash Belfry', tower: true,
+    sky: ['#261b30', '#603b4f', '#b66353'],
+    stone: ['#644049', '#452a3b', '#301f31', '#cb7a58', '#ffad74'],
+    ground: [[0, TOWER_FLOOR, TOWER_WIDTH]],
+    ledges: [
+      [35, 1090, 64], [133, 1020, 72], [156, 949, 56],
+      [58, 878, 69], [21, 802, 62], [101, 725, 60],
+      [150, 649, 68], [55, 571, 62], [21, 493, 62],
+      [114, 418, 67], [152, 340, 65], [61, 260, 67], [90, 184, 87]
+    ],
+    embers: [[66, 1074], [184, 933], [48, 786], [188, 633], [57, 477], [190, 324], [99, 244]],
+    spikes: [[136, 1020, 18], [102, 725, 17], [55, 571, 17], [115, 418, 19], [195, 340, 17]],
+    crawlers: [[94, 118, 878, -1], [158, 175, 649, 1], [23, 45, 493, -1]],
+    gate: [134, 184]
+  }
+];
+let stages = classicStages;
+const player = { x: 22, y: FLOOR - HEIGHT, vx: 0, vy: 0, ground: true, facing: 1 };
+const keyboard = new Set();
+const pressedKeys = new Map();
+const pointers = new Map();
+const particles = [];
+const background = document.createElement('canvas');
+background.width = W;
+background.height = H;
+let stage, stageIndex, surfaces, embers, crawlers, life, collected, mode;
+let elapsed = 0;
+let grace = 0;
+let jumpBuffer = 0;
+let invincible = 0;
+let soundEnabled = true;
+let audioContext;
+
+function playSound(notes) {
+  if (!soundEnabled) return;
+  const Audio = window.AudioContext || window.webkitAudioContext;
+  if (!Audio) return;
+  audioContext ||= new Audio();
+  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+  for (const [offset, frequency, duration] of notes) {
+    const at = audioContext.currentTime + offset;
+    const oscillator = audioContext.createOscillator();
+    const volume = audioContext.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = frequency;
+    volume.gain.setValueAtTime(.085, at);
+    volume.gain.exponentialRampToValueAtTime(.001, at + duration);
+    oscillator.connect(volume).connect(audioContext.destination);
+    oscillator.start(at);
+    oscillator.stop(at + duration);
+  }
+}
+
+function updateHUD() {
+  numberLabel.textContent = 'STAGE 0' + (stageIndex + 1) + ' / 0' + stages.length;
+  nameLabel.textContent = stage.name;
+  countLabel.textContent = collected + ' / ' + embers.length;
+  countLabel.setAttribute('aria-label', collected + ' of ' + embers.length + ' embers');
+  hearts.setAttribute('aria-label', life + (life === 1 ? ' life' : ' lives'));
+  for (const [index, heart] of [...hearts.children].entries()) {
+    heart.classList.toggle('lost', index >= life);
+  }
+  objective.textContent = collected === embers.length
+    ? 'Gate open. Reach the arch!'
+    : 'Collect every ember to open the gate.';
+}
+
+function fitPlayfield() {
+  const width = stage.tower ? TOWER_WIDTH : CLASSIC_WIDTH;
+  // Change the visible world height to match the frame. Both axes share one scale.
+  const height = stage.tower
+    ? Math.max(1, Math.round(width * frame.clientHeight / Math.max(1, frame.clientWidth)))
+    : CLASSIC_HEIGHT;
+  if (W === width && H === height) return false;
+  canvas.width = background.width = W = width;
+  canvas.height = background.height = H = height;
+  return true;
+}
+
+function resetPlayer() {
+  const floor = stage.ground[0][1];
+  Object.assign(player, { x: 22, y: floor - HEIGHT, vx: 0, vy: 0, ground: true, facing: 1 });
+  grace = 0;
+  jumpBuffer = 0;
+}
+
+function loadStage(index) {
+  stageIndex = index;
+  stage = stages[index];
+  surfaces = [...stage.ground, ...stage.ledges];
+  embers = stage.embers.map(([x, y]) => ({ x, y, found: false }));
+  crawlers = stage.crawlers.map(([left, right, y, direction]) => ({
+    left, right, x: (left + right) / 2, y, direction, alive: true
+  }));
+  life = 3;
+  collected = 0;
+  invincible = 0;
+  particles.length = 0;
+  resetPlayer();
+  fitPlayfield();
+  buildBackdrop();
+  updateHUD();
+  resume();
+}
+
+function clearInput() {
+  keyboard.clear();
+  pressedKeys.clear();
+  pointers.clear();
+  jumpBuffer = 0;
+  updateKeys();
+}
+
+function resume() {
+  const focusGame = mode !== undefined;
+  mode = 'play';
+  veil.hidden = true;
+  clearInput();
+  if (focusGame) frame.focus({ preventScroll: true });
+}
+
+function showDialog(nextMode, title, detail, buttonLabel) {
+  mode = nextMode;
+  clearInput();
+  document.getElementById('message').textContent = title;
+  document.getElementById('detail').textContent = detail;
+  continueButton.textContent = buttonLabel;
+  veil.hidden = false;
+  continueButton.focus({ preventScroll: true });
+}
+
+function togglePause() {
+  if (mode === 'play') showDialog('pause', 'Paused', 'Your place is saved for this run.', 'Resume');
+  else if (mode === 'pause') resume();
+}
+
+function completeStage() {
+  playSound([[0, 523, .17], [.09, 659, .18], [.18, 784, .24], [.29, 1047, .3]]);
+  if (stageIndex + 1 === stages.length) {
+    const detail = stage.tower
+      ? 'You climbed both towers and recovered every ember.'
+      : 'You found every ember across all three stages.';
+    showDialog('win', 'The fire is restored', detail, 'Play again');
+  } else {
+    showDialog('clear', 'Stage cleared', stages[stageIndex + 1].name + ' awaits.', 'Next stage');
+  }
+}
+
+function takeHit(x, y) {
+  life -= 1;
+  burst(x, y, '#ff7755', 14);
+  playSound([[0, 190, .13], [.07, 110, .2]]);
+  updateHUD();
+  if (!life) {
+    showDialog('lost', 'Out of lives', 'Give ' + stage.name + ' another try.', 'Retry stage');
+  } else {
+    resetPlayer();
+    invincible = 1.1;
+  }
+}
+
+function active(action) {
+  if (keyboard.has(action)) return true;
+  for (const heldAction of pointers.values()) {
+    if (heldAction === action) return true;
+  }
+  return false;
+}
+
+const controlButtons = document.querySelectorAll('button[data-action]');
+
+function updateKeys() {
+  for (const button of controlButtons) {
+    button.classList.toggle('held', active(button.dataset.action));
+  }
+}
+
+const bindings = {
+  ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowDown: 'fastFall',
+  ArrowUp: 'jump', w: 'jump', ' ': 'jump', p: 'pause', Escape: 'pause', r: 'restart'
+};
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Tab' && !veil.hidden) {
+    event.preventDefault();
+    continueButton.focus();
+    return;
+  }
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.key === ' ' && event.target.closest('button')) return;
+  const action = bindings[event.key] || bindings[event.key.toLowerCase()];
+  if (!action) return;
+  event.preventDefault();
+  if (action === 'pause' && !event.repeat) togglePause();
+  if (action === 'restart' && !event.repeat) loadStage(mode === 'win' ? 0 : stageIndex);
+  if (mode !== 'play' || !['left', 'right', 'jump', 'fastFall'].includes(action)) return;
+  if (event.repeat && !pressedKeys.has(event.code)) return;
+  pressedKeys.set(event.code, action);
+  if (action === 'jump' && !keyboard.has('jump') && !event.repeat) jumpBuffer = .13;
+  keyboard.add(action);
+  updateKeys();
+});
+
+document.addEventListener('keyup', event => {
+  const action = pressedKeys.get(event.code);
+  if (!action) return;
+  pressedKeys.delete(event.code);
+  if (![...pressedKeys.values()].includes(action)) keyboard.delete(action);
+  updateKeys();
+});
+
+window.addEventListener('blur', clearInput);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && mode === 'play') togglePause();
+});
+
+for (const button of controlButtons) {
+  const action = button.dataset.action;
+  if (action === 'pause') {
+    button.addEventListener('click', togglePause);
+    continue;
+  }
+  button.addEventListener('pointerdown', event => {
+    if (mode !== 'play' || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    button.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, action);
+    if (action === 'jump') jumpBuffer = .13;
+    updateKeys();
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    button.addEventListener(type, event => {
+      pointers.delete(event.pointerId);
+      updateKeys();
+    });
+  }
+  button.addEventListener('click', event => {
+    if (event.detail !== 0 || mode !== 'play') return;
+    if (action === 'jump') {
+      jumpBuffer = .13;
+    } else {
+      player.vx = action === 'left' ? -96 : 96;
+      player.facing = Math.sign(player.vx);
+    }
+  });
+}
+
+continueButton.addEventListener('click', () => {
+  if (mode === 'start') {
+    playSound([[0, 392, .14], [.09, 587, .18]]);
+    resume();
+  } else if (mode === 'pause') resume();
+  else if (mode === 'clear') loadStage(stageIndex + 1);
+  else loadStage(mode === 'win' ? 0 : stageIndex);
+});
+
+soundButton.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  soundButton.querySelector('.label').textContent = soundEnabled ? 'Sound on' : 'Sound off';
+  const label = soundEnabled ? 'Mute sound' : 'Unmute sound';
+  soundButton.setAttribute('aria-label', label);
+  soundButton.title = label;
+  if (soundEnabled) playSound([[0, 660, .15]]);
+});
+
+document.getElementById('restart').addEventListener('click', () => {
+  loadStage(mode === 'win' ? 0 : stageIndex);
+});
+
+function overlaps(x, y, w, h) {
+  return player.x < x + w && player.x + WIDTH > x && player.y < y + h && player.y + HEIGHT > y;
+}
+
+function burst(x, y, color, amount) {
+  for (let i = 0; i < amount; i++) {
+    particles.push({ x, y, color, vx: Math.random() * 76 - 38, vy: -Math.random() * 54 - 8, time: .25 + Math.random() * .25 });
+  }
+}
+
+function update(dt) {
+  elapsed += dt;
+  invincible = Math.max(0, invincible - dt);
+  jumpBuffer = Math.max(0, jumpBuffer - dt);
+  grace = player.ground ? .085 : Math.max(0, grace - dt);
+  const move = Number(active('right')) - Number(active('left'));
+  const speed = move * (stage.tower ? 160 : 426);
+  const acceleration = (move ? 1800 : 2400) * dt;
+  player.vx += Math.max(-acceleration, Math.min(acceleration, speed - player.vx));
+  if (move) player.facing = move;
+  if (jumpBuffer && grace) {
+    player.vy = -210;
+    player.ground = false;
+    jumpBuffer = 0;
+    grace = 0;
+    burst(player.x + WIDTH / 2, player.y + HEIGHT, '#ce8e65', 4);
+    playSound([[0, 390, .12], [.04, 570, .1]]);
+  }
+
+  const oldFeet = player.y + HEIGHT;
+  player.x = Math.max(0, Math.min(W - WIDTH, player.x + player.vx * dt));
+  const gravity = active('fastFall') ? 620 : 200;
+  const maxFallSpeed = active('fastFall') ? 440 : 370;
+  player.vy = Math.min(maxFallSpeed, player.vy + gravity * dt);
+  player.y += player.vy * dt;
+  player.ground = false;
+  if (player.vy >= 0) {
+    let landing = Infinity;
+    for (const [x, y, width] of surfaces) {
+      if (oldFeet <= y && player.y + HEIGHT >= y && player.x + WIDTH > x && player.x < x + width) {
+        landing = Math.min(landing, y);
+      }
+    }
+    if (landing !== Infinity) {
+      player.y = landing - HEIGHT;
+      player.vy = 0;
+      player.ground = true;
+    }
+  }
+
+  const worldBottom = stage.tower ? TOWER_BOTTOM : H;
+  if (player.y > worldBottom + 8) {
+    takeHit(player.x + WIDTH / 2, worldBottom - 3);
+    return;
+  }
+
+  for (const [x, y, width] of stage.spikes) {
+    if (!invincible && overlaps(x + 1, y - 6, width - 2, 6)) {
+      takeHit(player.x + WIDTH / 2, player.y + HEIGHT / 2);
+      return;
+    }
+  }
+
+  for (const crawler of crawlers) {
+    if (!crawler.alive) continue;
+    crawler.x += crawler.direction * 29 * dt;
+    if (crawler.x <= crawler.left || crawler.x >= crawler.right) {
+      crawler.direction *= -1;
+      crawler.x = Math.max(crawler.left, Math.min(crawler.right, crawler.x));
+    }
+    if (!overlaps(crawler.x - 6, crawler.y - 9, 12, 9)) continue;
+    if (player.vy >= 0 && oldFeet <= crawler.y - 6) {
+      crawler.alive = false;
+      player.y = crawler.y - 9 - HEIGHT;
+      player.vy = -145;
+      player.ground = false;
+      burst(crawler.x, crawler.y - 5, '#ff975a', 9);
+      playSound([[0, 235, .12], [.05, 370, .13]]);
+    } else if (!invincible) {
+      takeHit(player.x + WIDTH / 2, player.y + HEIGHT / 2);
+      return;
+    }
+  }
+
+  for (const ember of embers) {
+    if (ember.found || !overlaps(ember.x - 6, ember.y - 7, 12, 14)) continue;
+    ember.found = true;
+    collected += 1;
+    burst(ember.x, ember.y, '#ffcc73', 12);
+    playSound([[0, 750, .14], [.07, 1040, .19]]);
+    updateHUD();
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.time -= dt;
+    if (p.time <= 0) {
+      particles.splice(i, 1);
+      continue;
+    }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 115 * dt;
+  }
+
+  const [gateX, gateY] = stage.gate;
+  if (collected === embers.length && overlaps(gateX - 6, gateY - 24, 12, 24)) completeStage();
+}
+
+function rect(c, color, x, y, w, h) {
+  c.fillStyle = color;
+  c.fillRect(Math.round(x), Math.round(y), w, h);
+}
+
+function shape(c, color, points) {
+  c.fillStyle = color;
+  c.beginPath();
+  c.moveTo(...points[0]);
+  for (const point of points.slice(1)) c.lineTo(...point);
+  c.closePath();
+  c.fill();
+}
+
+function noise(seed) {
+  return ((Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+}
+
+function pine(c, x, bottom, height, color) {
+  const top = bottom - height;
+  rect(c, color, x - 1, top + 9, 3, height - 9);
+  for (let tier = 0; tier < 4; tier++) {
+    const start = top + Math.round(tier * height * .155);
+    const width = Math.round(height * (.078 + tier * .027));
+    for (let row = 0; row < 6; row++) {
+      const half = Math.floor(width * (row + 1) / 6);
+      rect(c, color, x - half, start + row * 2, half * 2 + 1, 2);
+    }
+  }
+}
+
+function buildBackdrop() {
+  const c = background.getContext('2d');
+  const gradient = c.createLinearGradient(0, 0, 0, H);
+  gradient.addColorStop(0, stage.sky[0]);
+  gradient.addColorStop(.54, stage.sky[1]);
+  gradient.addColorStop(1, stage.sky[2]);
+  c.fillStyle = gradient;
+  c.fillRect(0, 0, W, H);
+
+  if (stage.tower) {
+    for (let i = 0; i < 100; i++) {
+      const x = Math.floor(noise(i * 13771 + 412) * W);
+      const y = Math.floor(noise(i * 7919 + 147) * H);
+      const size = i % 13 === 0 ? 2 : 1;
+      rect(c, i % 4 === 0 ? '#d59579' : '#92617d', x, y, size, 1);
+    }
+    return;
+  }
+
+  const shift = stage.sunX - 271;
+  for (let i = 0; i < 100; i++) {
+    const x = Math.floor(noise(i * 13771 + 412) * W);
+    const y = 12 + (i * 59 % 116);
+    rect(c, i % 9 === 0 ? '#edad8a' : '#b47879', x, y, i % 13 === 0 ? 2 : 1, 1);
+  }
+
+  for (let row = -40; row <= 40; row += 2) {
+    const half = Math.floor(Math.sqrt(40 * 40 - row * row));
+    const color = row > 18 && row % 8 < 3 ? '#d98065' : stage.sun;
+    rect(c, color, stage.sunX - half, 106 + row, half * 2 + 1, 2);
+  }
+  c.globalAlpha = .22;
+  for (const [x, y, width] of [[3,88,99],[21,91,51],[118,117,60],[1,124,110],[358,102,86],[402,106,78],[312,123,166],[87,138,100]]) {
+    rect(c, '#ffc394', x, y, width, 2);
+    rect(c, '#ed9b84', x + 13, y + 3, Math.floor(width * .64), 1);
+  }
+  c.globalAlpha = 1;
+
+  shape(c, '#92505c', [[0,160],[21,145],[45,151],[83,113],[96,113],[123,139],[149,129],[184,151],[219,137],[251+shift,153],[285+shift,132],[330,154],[366,129],[385,120],[408,142],[433,126],[480,144],[480,H],[0,H]]);
+  shape(c, '#714052', [[0,156],[34,141],[63,157],[94,151],[128,167],[158,145],[170,144],[197,122],[205,125],[222,144],[236,140],[263,159],[296,148],[329,168],[350,147],[368,151],[400,158],[439,137],[456,143],[480,128],[480,H],[0,H]]);
+  shape(c, '#a86166', [[174,143],[197,122],[205,125],[217,137],[203,132],[199,138],[193,133]]);
+  shape(c, '#a86166', [[68,128],[83,113],[96,113],[108,126],[96,121],[90,124],[87,119]]);
+  shape(c, '#543144', [[0,180],[33,153],[53,161],[69,157],[89,177],[121,163],[144,177],[179,173],[201,155],[227,165],[247,155],[276,179],[308,161],[332,166],[350,178],[379,155],[402,171],[435,161],[459,172],[480,158],[480,H],[0,H]]);
+
+  for (let i = 0; i < 42; i++) {
+    const x = i * 12 + noise(i * 5879) * 14;
+    pine(c, x, 217 + (i * 7 % 13), 22 + (i * 13 % 49), '#492a3c');
+  }
+  shape(c, '#382333', [[0,202],[28,194],[71,206],[120,198],[150,209],[186,204],[225,211],[271,198],[292,201],[325,207],[354,199],[389,206],[445,193],[480,203],[480,H],[0,H]]);
+  for (let i = 0; i < 30; i++) {
+    const x = i * 17 + noise(i * 9917) * 16;
+    pine(c, x, 230 + (i * 5 % 11), 25 + (i * 17 % 36), '#342131');
+  }
+  for (const [x, height] of [[8,67],[22,43],[38,32],[458,31],[472,56]]) {
+    pine(c, x, 225, height, '#2b1d2b');
+  }
+}
+
+function drawSurface(x, y, width, ground) {
+  const [face, shade, deep, top, rim] = stage.stone;
+  const height = ground ? (stage.tower ? TOWER_BOTTOM : H) - y : 11;
+  rect(ctx, deep, x + 2, y + 2, width - 4, height + 1);
+  rect(ctx, face, x + 1, y + 3, width - 2, height - 3);
+  for (let row = 0; row < height - 5; row += 5) {
+    for (let col = row % 2 ? 5 : 2; col < width - 3; col += 8) {
+      const tile = noise((x + col) * 6551 + (y + row) * 371);
+      rect(ctx, tile > .23 ? shade : deep, x + col, y + 5 + row, Math.min(7, width - col - 1), 3);
+      if (tile > .64) rect(ctx, face, x + col + 1, y + 5 + row, 3, 1);
+    }
+  }
+  rect(ctx, top, x, y, width, 3);
+  rect(ctx, rim, x + 1, y, width - 2, 1);
+  for (let col = 3; col < width - 3; col += 4) {
+    const tile = noise((x + col) * 9719 + y * 1381);
+    if (tile > .48) rect(ctx, tile > .76 ? rim : top, x + col, y + 2, 2, tile > .76 ? 3 : 2);
+    if (tile > .87) {
+      rect(ctx, top, x + col, y - 2, 1, 2);
+      rect(ctx, rim, x + col + 1, y - 1, 1, 1);
+    }
+  }
+}
+
+function drawGate() {
+  const [x, floor] = stage.gate;
+  const y = floor - 39;
+  const open = collected === embers.length;
+  const aura = ctx.createRadialGradient(x, y + 23, 2, x, y + 23, open ? 35 : 23);
+  aura.addColorStop(0, open ? '#ffc35c9c' : '#f786542e');
+  aura.addColorStop(1, '#e8684700');
+  ctx.fillStyle = aura;
+  ctx.fillRect(x - 38, y - 12, 76, 65);
+  rect(ctx, '#2f2029', x - 14, y + 11, 28, 28);
+  rect(ctx, '#2f2029', x - 11, y + 5, 22, 11);
+  rect(ctx, '#765355', x - 9, y + 2, 18, 4);
+  rect(ctx, '#a87560', x - 6, y, 12, 2);
+  rect(ctx, '#ac806e', x - 12, y + 6, 6, 4);
+  rect(ctx, '#ac806e', x + 6, y + 6, 6, 4);
+  rect(ctx, '#ad7669', x - 16, y + 10, 32, 3);
+  for (const side of [-1, 1]) {
+    const post = side < 0 ? x - 16 : x + 9;
+    for (let row = 0; row < 4; row++) {
+      rect(ctx, row % 2 ? '#6f4a4d' : '#8f6158', post, y + 14 + row * 6, 7, 5);
+      rect(ctx, '#a87562', post, y + 14 + row * 6, 2, 3);
+    }
+    rect(ctx, '#af7964', post - 1, floor - 2, 9, 2);
+  }
+  rect(ctx, open ? '#ffbd5f' : '#432632', x - 7, y + 14, 14, 25);
+  rect(ctx, open ? '#ffeaa2' : '#734042', x - 4, y + 16, 8, 23);
+  rect(ctx, open ? '#fff8c9' : '#e38b62', x - 1, y + 19, 2, open ? 20 : 12);
+  rect(ctx, open ? '#ffe5ac' : '#e39468', x - 2, y + 4, 4, 4);
+}
+
+function drawEmber(ember, index) {
+  const y = Math.round(ember.y + Math.sin(elapsed * 4 + index) * 2);
+  const x = ember.x;
+  const glow = ctx.createRadialGradient(x, y, 1, x, y, 14);
+  glow.addColorStop(0, '#ffc46e72');
+  glow.addColorStop(1, '#ffc46e00');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 14, y - 14, 28, 28);
+  for (let row = -5; row <= 5; row++) {
+    const half = 5 - Math.abs(row);
+    rect(ctx, '#ffac56', x - half, y + row, half * 2 + 1, 1);
+  }
+  rect(ctx, '#ffeb9d', x - 1, y - 4, 2, 3);
+  rect(ctx, '#fff5be', x - 2, y - 1, 4, 2);
+  rect(ctx, '#db7741', x - 1, y + 2, 3, 2);
+  const sparkle = (elapsed * 2 + index / 3) % 2;
+  if (sparkle < .45) rect(ctx, '#ffdb8a', x + 8, y - 6, 1, 1);
+}
+
+function drawCrawler(crawler) {
+  const x = Math.round(crawler.x);
+  const y = crawler.y;
+  const stride = Math.floor(elapsed * 13) % 2;
+  rect(ctx, '#28202a', x - 7, y - 4, 14, 3);
+  rect(ctx, '#5c2934', x - 6, y - 8, 12, 6);
+  rect(ctx, '#af4b44', x - 4, y - 10, 8, 6);
+  rect(ctx, '#e37753', x - 3, y - 10, 5, 2);
+  rect(ctx, '#ffcf7a', x + crawler.direction * 3, y - 7, 2, 2);
+  rect(ctx, '#632b35', x - 5 + stride, y - 2, 3, 2);
+  rect(ctx, '#632b35', x + 3 - stride, y - 2, 3, 2);
+}
+
+function drawPlayer() {
+  if (invincible > 0 && Math.floor(invincible * 16) % 2) return;
+  const stride = player.ground && Math.abs(player.vx) > 20 ? Math.floor(elapsed * 14) % 2 : 0;
+  ctx.save();
+  ctx.translate(Math.round(player.x + WIDTH / 2), Math.round(player.y));
+  ctx.scale(player.facing, 1);
+  rect(ctx, '#2e1d26', -5, 1, 10, 13);
+  rect(ctx, '#fa9a53', -4, 0, 7, 7);
+  rect(ctx, '#ffd486', -3, 0, 5, 1);
+  rect(ctx, '#e07441', -5, 3, 10, 5);
+  rect(ctx, '#442637', -2, 3, 7, 4);
+  rect(ctx, '#fff0b6', 1, 4, 3, 1);
+  rect(ctx, '#8b3d3e', -4, 8, 8, 5);
+  rect(ctx, '#ffa04f', -5, 7, 10, 2);
+  rect(ctx, '#e6663c', -9, stride ? 6 : 8, 5, 2);
+  rect(ctx, '#f6a350', -10, stride ? 5 : 9, 3, 1);
+  rect(ctx, '#e88a51', 3, 9, 2, 3);
+  rect(ctx, '#392738', -4, 12, 3, 3 + stride);
+  rect(ctx, '#392738', 1, 12, 3, 4 - stride);
+  rect(ctx, '#bc795f', -5, 14 + stride, 4, 1);
+  rect(ctx, '#bc795f', 1, 15 - stride, 4, 1);
+  ctx.restore();
+}
+
+function drawTowerWalls(cameraY) {
+  const firstRow = Math.floor(cameraY / 24) * 24;
+  for (let y = firstRow; y < cameraY + H; y += 24) {
+    const offset = y % 48 === 0 ? 0 : 3;
+    for (const x of [0, W - 12 + offset]) {
+      rect(ctx, '#33243c', x, y, 12 - offset, 24);
+      rect(ctx, '#4c3047', x, y, 12 - offset, 2);
+    }
+  }
+}
+
+function draw() {
+  // Paint the full viewport before moving into world coordinates.
+  ctx.drawImage(background, 0, 0);
+  ctx.save();
+  if (stage.tower) {
+    const cameraY = Math.round(Math.max(0, Math.min(TOWER_BOTTOM - H, player.y - H * .48)));
+    ctx.translate(0, -cameraY);
+    drawTowerWalls(cameraY);
+  }
+  for (let i = 0; i < 31; i++) {
+    const x = ((i * 61 + elapsed * (3 + i % 5)) % W + W) % W;
+    const y = 122 + (i * 31 % 112) + Math.sin(elapsed * 2 + i) * 3;
+    rect(ctx, i % 5 === 0 ? '#ffc088' : '#d78359', x, y, i % 9 === 0 ? 2 : 1, 1);
+  }
+  for (const block of stage.ground) drawSurface(...block, true);
+  for (const block of stage.ledges) drawSurface(...block, false);
+  for (const [x, y, width] of stage.spikes) {
+    for (let i = 0; i + 4 <= width; i += 5) {
+      rect(ctx, '#7a3e42', x + i, y - 3, 5, 3);
+      rect(ctx, '#e4896c', x + i + 1, y - 6, 2, 3);
+      rect(ctx, '#ffbb83', x + i + 2, y - 7, 1, 2);
+    }
+  }
+  drawGate();
+  for (const [index, ember] of embers.entries()) {
+    if (!ember.found) drawEmber(ember, index);
+  }
+  for (const crawler of crawlers) {
+    if (crawler.alive) drawCrawler(crawler);
+  }
+  drawPlayer();
+  for (const p of particles) rect(ctx, p.color, p.x, p.y, p.time > .2 ? 2 : 1, 1);
+  ctx.restore();
+}
+
+function startCourse() {
+  stages = portraitPhone.matches ? towerStages : classicStages;
+  loadStage(0);
+  const detail = stage.tower
+    ? 'Climb the towers, collect every ember, and reach each summit gate.'
+    : 'Jump across the ruins and collect every ember to open each gate.';
+  showDialog('start', 'Emberbound', detail, 'Play');
+}
+
+startCourse();
+portraitPhone.addEventListener('change', startCourse);
+new ResizeObserver(() => {
+  if (fitPlayfield()) buildBackdrop();
+}).observe(frame);
+let previous = performance.now();
+let accumulator = 0;
+function tick(now) {
+  if (mode === 'play') {
+    accumulator += Math.min((now - previous) / 1000, .05);
+    while (accumulator >= STEP && mode === 'play') {
+      update(STEP);
+      accumulator -= STEP;
+    }
+  } else {
+    accumulator = 0;
+  }
+  previous = now;
+  draw();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
